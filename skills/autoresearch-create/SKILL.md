@@ -80,23 +80,67 @@ outputting metrics in the format the agent expects.
 
 ### `autoresearch.sh` — The benchmark runner
 
-Write a self-contained shell script that:
-1. Sets up the environment if needed (build, compile, install deps, etc.)
-2. Runs the benchmark/test
-3. Outputs metrics in a **parseable format** the agent can extract, e.g.:
+This is the single command you run via `run_experiment`. It must be **self-contained, reliable, and produce structured output**. The agent parses the `METRIC` lines to feed into `log_experiment`.
+
+**You can and should update `autoresearch.sh` during the experiment loop** if you find ways to make it more robust, faster, or more informative. For example:
+- Add pre-checks that catch common failures early (syntax check, dependency check)
+- Improve error messages so failures are self-explanatory
+- Add more METRIC lines if a new measurement proves valuable (use `force: true` in `log_experiment`)
+- Optimize the script itself (fewer iterations if results are stable, skip unnecessary setup)
+
+**Requirements:**
+
+1. Start with `#!/bin/bash` and `set -euo pipefail`
+2. **Pre-checks** — verify the environment is ready before running the benchmark:
+   - Check that required files/binaries exist
+   - Run a quick syntax/compile check if applicable (catches trivial errors fast)
+   - If a pre-check fails, print a clear error and exit non-zero immediately
+3. **Setup** — build, compile, install, whatever is needed. Keep it minimal — skip steps that aren't needed every run.
+4. **Run the benchmark** — execute the actual workload.
+5. **Output metrics** — print each metric on its own line in this exact format:
    ```
    METRIC total_us=6945
    METRIC parse_us=5505
    METRIC render_us=1440
    METRIC allocations=39847
    ```
-4. Exits 0 on success, non-zero on failure
+   The format is `METRIC <name>=<number>`. No spaces around `=`. One per line.
+6. **Exit code** — exit 0 on success, non-zero on failure.
 
-The script should be `chmod +x` and work standalone: `./autoresearch.sh`
+**Example skeleton:**
 
-The agent uses `run_experiment` with `command: "./autoresearch.sh"` and parses the `METRIC` lines from the output to extract values for `log_experiment`.
+```bash
+#!/bin/bash
+set -euo pipefail
 
-**Important**: the script should be fast and deterministic. If the benchmark has variance, run multiple iterations and report the median or minimum.
+# Pre-checks
+if ! command -v ruby &>/dev/null; then
+  echo "ERROR: ruby not found" >&2
+  exit 1
+fi
+
+# Quick syntax check (catches trivial errors in <1s)
+ruby -c lib/my_file.rb 2>&1 || { echo "ERROR: syntax error" >&2; exit 1; }
+
+# Setup (only if needed)
+bundle exec rake compile 2>&1
+
+# Run benchmark
+output=$(ruby benchmark/run.rb 2>&1)
+echo "$output"
+
+# Extract and emit metrics
+total=$(echo "$output" | grep -oP 'total: \K[0-9]+')
+parse=$(echo "$output" | grep -oP 'parse: \K[0-9]+')
+echo "METRIC total_us=$total"
+echo "METRIC parse_us=$parse"
+```
+
+**Tips:**
+- **Fast feedback**: if the script can detect failure in <1 second (syntax error, missing file), do that before the expensive benchmark run.
+- **Determinism**: if the benchmark has variance, run multiple iterations and report the median or minimum.
+- **Keep it fast**: every second saved on the script is multiplied by hundreds of experiment runs.
+- The agent uses `run_experiment` with `command: "./autoresearch.sh"` — make sure it's `chmod +x`.
 
 4. **Commit both files**: `git add autoresearch.md autoresearch.sh && git commit -m "autoresearch: setup experiment plan and runner"`
 5. **Run the baseline**: use `run_experiment` with `./autoresearch.sh`, parse the METRIC output, then `log_experiment` to record it. The first experiment automatically becomes the baseline. Set `metric_name`, `metric_unit`, and `direction` on this first call. Include secondary `metrics` from the METRIC lines.
