@@ -53,7 +53,6 @@ interface ExperimentState {
   /** Definitions for secondary metrics (order preserved) */
   secondaryMetrics: MetricDef[];
   runTag: string | null;
-  totalExperiments: number;
 }
 
 interface RunDetails {
@@ -221,7 +220,7 @@ function renderDashboardLines(
 ): string[] {
   const lines: string[] = [];
 
-  if (st.totalExperiments === 0) {
+  if (st.results.length === 0) {
     lines.push(`  ${th.fg("dim", "No experiments yet.")}`);
     return lines;
   }
@@ -251,7 +250,7 @@ function renderDashboardLines(
   // Runs summary
   lines.push(
     truncateToWidth(
-      `  ${th.fg("muted", "Runs:")} ${th.fg("text", String(st.totalExperiments))}` +
+      `  ${th.fg("muted", "Runs:")} ${th.fg("text", String(st.results.length))}` +
         `  ${th.fg("success", `${kept} kept`)}` +
         (discarded > 0 ? `  ${th.fg("warning", `${discarded} discarded`)}` : "") +
         (crashed > 0 ? `  ${th.fg("error", `${crashed} crashed`)}` : ""),
@@ -459,7 +458,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     metricUnit: "",
     secondaryMetrics: [],
     runTag: null,
-    totalExperiments: 0,
   };
 
   // -----------------------------------------------------------------------
@@ -475,7 +473,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       metricUnit: "",
       secondaryMetrics: [],
       runTag: null,
-      totalExperiments: 0,
     };
 
     for (const entry of ctx.sessionManager.getBranch()) {
@@ -506,7 +503,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     if (!ctx.hasUI) return;
     lastCtx = ctx;
 
-    if (state.totalExperiments === 0) {
+    if (state.results.length === 0) {
       ctx.ui.setWidget("autoresearch", undefined);
       return;
     }
@@ -560,7 +557,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         const displayVal = bestPrimary ?? baseline;
         const parts = [
           theme.fg("accent", "🔬"),
-          theme.fg("muted", ` ${state.totalExperiments} runs`),
+          theme.fg("muted", ` ${state.results.length} runs`),
           theme.fg("success", ` ${kept} kept`),
           crashed > 0 ? theme.fg("error", ` ${crashed}💥`) : "",
           theme.fg("dim", " │ "),
@@ -833,7 +830,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       };
 
       state.results.push(experiment);
-      state.totalExperiments++;
 
       // Register any new secondary metric names
       for (const name of Object.keys(secondaryMetrics)) {
@@ -852,11 +848,11 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       updateWidget(ctx);
 
       // Build response text
-      let text = `Logged #${state.totalExperiments}: ${experiment.status} — ${experiment.description}`;
+      let text = `Logged #${state.results.length}: ${experiment.status} — ${experiment.description}`;
 
       if (state.bestMetric !== null) {
         text += `\nBaseline ${state.metricName}: ${formatNum(state.bestMetric, state.metricUnit)}`;
-        if (state.totalExperiments > 1 && params.status === "keep" && params.metric > 0) {
+        if (state.results.length > 1 && params.status === "keep" && params.metric > 0) {
           const delta = params.metric - state.bestMetric;
           const pct = ((delta / state.bestMetric) * 100).toFixed(1);
           const sign = delta > 0 ? "+" : "";
@@ -873,7 +869,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           const unit = def?.unit ?? "";
           let part = `${name}: ${formatNum(value, unit)}`;
           const bv = baselines[name];
-          if (bv !== undefined && state.totalExperiments > 1 && bv !== 0) {
+          if (bv !== undefined && state.results.length > 1 && bv !== 0) {
             const d = value - bv;
             const p = ((d / bv) * 100).toFixed(1);
             const s = d > 0 ? "+" : "";
@@ -884,7 +880,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         text += `\nSecondary: ${parts.join("  ")}`;
       }
 
-      text += `\n(${state.totalExperiments} experiments total)`;
+      text += `\n(${state.results.length} experiments total)`;
 
       // Auto-commit with metrics trailer
       try {
@@ -952,7 +948,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       let text =
         theme.fg(color, `${icon} `) +
-        theme.fg("accent", `#${s.totalExperiments}`);
+        theme.fg("accent", `#${s.results.length}`);
 
 
 
@@ -985,7 +981,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.registerShortcut("ctrl+x", {
     description: "Toggle autoresearch dashboard",
     handler: async (ctx) => {
-      if (state.totalExperiments === 0) {
+      if (state.results.length === 0) {
         ctx.ui.notify("No experiments yet", "info");
         return;
       }
