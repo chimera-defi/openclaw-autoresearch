@@ -448,6 +448,13 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   let autoresearchMode = false;
   let lastCtx: ExtensionContext | null = null;
 
+  // Running experiment state (for spinner in fullscreen overlay)
+  let runningExperiment: { startedAt: number; command: string } | null = null;
+  let overlayTui: { requestRender: () => void } | null = null;
+  let spinnerInterval: ReturnType<typeof setInterval> | null = null;
+  let spinnerFrame = 0;
+  const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
   let state: ExperimentState = {
     results: [],
     bestMetric: null,
@@ -670,6 +677,12 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
+  // Clear running experiment state when agent stops
+  pi.on("agent_end", async () => {
+    runningExperiment = null;
+    if (overlayTui) overlayTui.requestRender();
+  });
+
   // When in autoresearch mode, add a static note to the system prompt.
   // Only a short pointer — no file content, fully cache-safe.
   pi.on("before_agent_start", async (event, ctx) => {
@@ -787,6 +800,9 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const timeout = (params.timeout_seconds ?? 600) * 1000;
 
+      runningExperiment = { startedAt: Date.now(), command: params.command };
+      if (overlayTui) overlayTui.requestRender();
+
       onUpdate?.({
         content: [{ type: "text", text: `Running: ${params.command}` }],
         details: { phase: "running" },
@@ -794,11 +810,17 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       const t0 = Date.now();
 
-      const result = await pi.exec("bash", ["-c", params.command], {
-        signal,
-        timeout,
-        cwd: ctx.cwd,
-      });
+      let result;
+      try {
+        result = await pi.exec("bash", ["-c", params.command], {
+          signal,
+          timeout,
+          cwd: ctx.cwd,
+        });
+      } finally {
+        runningExperiment = null;
+        if (overlayTui) overlayTui.requestRender();
+      }
 
       const durationSeconds = (Date.now() - t0) / 1000;
       const output = (result.stdout + "\n" + result.stderr).trim();
@@ -1061,7 +1083,13 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         // Don't fail if write fails
       }
 
+      // Clear running experiment (log_experiment consumes the run)
+      runningExperiment = null;
+
       updateWidget(ctx);
+
+      // Refresh fullscreen overlay if open
+      if (overlayTui) overlayTui.requestRender();
 
       return {
         content: [{ type: "text", text }],
@@ -1162,23 +1190,40 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       await ctx.ui.custom<void>(
         (tui, theme, _kb, done) => {
           let scrollOffset = 0;
-          let cachedLines: string[] | null = null;
+          // Store tui ref so run_experiment can trigger re-renders
+          overlayTui = tui;
+
+          // Start spinner interval for elapsed time animation
+          spinnerInterval = setInterval(() => {
+            spinnerFrame = (spinnerFrame + 1) % SPINNER.length;
+            if (runningExperiment) tui.requestRender();
+          }, 80);
 
           function getContentLines(): string[] {
-            if (!cachedLines) {
-              const w = (process.stdout.columns || 120) - 4; // inner width (border padding)
-              cachedLines = renderDashboardLines(state, w, theme, 0);
-            }
-            return cachedLines;
+            const w = (process.stdout.columns || 120) - 6; // inner width
+            return renderDashboardLines(state, w, theme, 0);
+          }
+
+          function formatElapsed(ms: number): string {
+            const s = Math.floor(ms / 1000);
+            const m = Math.floor(s / 60);
+            const sec = s % 60;
+            return m > 0 ? `${m}m${String(sec).padStart(2, "0")}s` : `${sec}s`;
           }
 
           return {
-            render(width: number): string[] {
-              const height = (process.stdout.rows || 40) - 2; // leave room for border
+            render(_width: number): string[] {
+              const termW = process.stdout.columns || 120;
+              const termH = process.stdout.rows || 40;
+              const width = termW - 2; // near full-width, 1 char margin each side
               const innerW = width - 4; // │ + space + content + space + │
+              const hasSpinner = !!runningExperiment;
+              // Reserve: top border, bottom border, help line, optional spinner + separator
+              const reservedRows = 2 + (hasSpinner ? 2 : 0);
+              const viewportRows = Math.max(4, termH - 2 - reservedRows);
+
               const content = getContentLines();
               const totalRows = content.length;
-              const viewportRows = height - 4; // top border + title + bottom border + help
 
               // Clamp scroll
               const maxScroll = Math.max(0, totalRows - viewportRows);
@@ -1186,6 +1231,13 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
               if (scrollOffset < 0) scrollOffset = 0;
 
               const out: string[] = [];
+
+              const pad = (s: string, len: number) => {
+                const vis = visibleWidth(s);
+                return s + " ".repeat(Math.max(0, len - vis));
+              };
+              const row = (s: string) =>
+                theme.fg("border", "│") + " " + pad(s, innerW) + " " + theme.fg("border", "│");
 
               // Top border with title
               const titlePrefix = "🔬 autoresearch";
@@ -1202,19 +1254,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
                 theme.fg("border", "─".repeat(topFill) + "╮")
               );
 
-              // Scrollbar indicator
-              const scrollInfo = totalRows > viewportRows
-                ? ` ${scrollOffset + 1}-${Math.min(scrollOffset + viewportRows, totalRows)}/${totalRows}`
-                : "";
-
               // Content rows
-              const pad = (s: string, len: number) => {
-                const vis = visibleWidth(s);
-                return s + " ".repeat(Math.max(0, len - vis));
-              };
-              const row = (s: string) =>
-                theme.fg("border", "│") + " " + pad(s, innerW) + " " + theme.fg("border", "│");
-
               const visible = content.slice(scrollOffset, scrollOffset + viewportRows);
               for (const line of visible) {
                 out.push(row(line));
@@ -1224,7 +1264,24 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
                 out.push(row(""));
               }
 
+              // Running experiment spinner
+              if (hasSpinner && runningExperiment) {
+                const elapsed = formatElapsed(Date.now() - runningExperiment.startedAt);
+                const frame = SPINNER[spinnerFrame % SPINNER.length];
+                const runLabel = `${frame} running experiment… ${elapsed}`;
+                // Thin separator
+                out.push(
+                  theme.fg("border", "├") +
+                  theme.fg("border", "─".repeat(innerW + 2)) +
+                  theme.fg("border", "┤")
+                );
+                out.push(row(theme.fg("warning", runLabel)));
+              }
+
               // Bottom border with help
+              const scrollInfo = totalRows > viewportRows
+                ? ` ${scrollOffset + 1}-${Math.min(scrollOffset + viewportRows, totalRows)}/${totalRows}`
+                : "";
               const helpText = ` ↑↓/j/k scroll • esc close${scrollInfo} `;
               const botFill = Math.max(0, innerW + 2 - helpText.length);
               out.push(
@@ -1238,8 +1295,10 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
             handleInput(data: string): void {
               const content = getContentLines();
-              const height = (process.stdout.rows || 40) - 2;
-              const viewportRows = height - 4;
+              const termH = process.stdout.rows || 40;
+              const hasSpinner = !!runningExperiment;
+              const reservedRows = 2 + (hasSpinner ? 2 : 0);
+              const viewportRows = Math.max(4, termH - 2 - reservedRows);
               const maxScroll = Math.max(0, content.length - viewportRows);
 
               if (matchesKey(data, "escape") || data === "q") {
@@ -1262,8 +1321,14 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
               tui.requestRender();
             },
 
-            invalidate(): void {
-              cachedLines = null;
+            invalidate(): void {},
+
+            dispose(): void {
+              overlayTui = null;
+              if (spinnerInterval) {
+                clearInterval(spinnerInterval);
+                spinnerInterval = null;
+              }
             },
           };
         },
