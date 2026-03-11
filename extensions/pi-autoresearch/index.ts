@@ -239,44 +239,78 @@ function renderDashboardLines(
   const kept = st.results.filter((r) => r.status === "keep").length;
   const discarded = st.results.filter((r) => r.status === "discard").length;
   const crashed = st.results.filter((r) => r.status === "crash").length;
-  const best = formatNum(st.bestMetric, st.metricUnit);
 
-  lines.push(
-    truncateToWidth(
-      `  ${th.fg("muted", "Total:")} ${th.fg("text", String(st.totalExperiments))}` +
-        `  ${th.fg("success", `${kept} kept`)}` +
-        `  ${th.fg("warning", `${discarded} discarded`)}` +
-        `  ${th.fg("error", `${crashed} crashed`)}`,
-      width
-    )
-  );
+  const baseline = st.bestMetric;
+  const baselineSec = findBaselineSecondary(st.results, st.secondaryMetrics);
 
-  // Baseline (primary metric bolded with star)
-  lines.push(
-    truncateToWidth(
-      `  ${th.fg("muted", "Baseline:")} ${th.fg("warning", th.bold(`★ ${st.metricName}: ${best}`))}`,
-      width
-    )
-  );
-
-  // Secondary metric baselines
-  if (st.secondaryMetrics.length > 0) {
-    const baselines = findBaselineSecondary(st.results, st.secondaryMetrics);
-    const secondaryParts: string[] = [];
-    for (const sm of st.secondaryMetrics) {
-      const val = baselines[sm.name];
-      if (val !== undefined) {
-        secondaryParts.push(`${sm.name}: ${formatNum(val, sm.unit)}`);
+  // Find best kept primary metric and its run number
+  let bestPrimary: number | null = null;
+  let bestSecondary: Record<string, number> = {};
+  let bestRunNum = 0;
+  for (let i = st.results.length - 1; i >= 0; i--) {
+    const r = st.results[i];
+    if (r.status === "keep" && r.metric > 0) {
+      if (bestPrimary === null || isBetter(r.metric, bestPrimary, st.bestDirection)) {
+        bestPrimary = r.metric;
+        bestSecondary = r.metrics ?? {};
+        bestRunNum = i + 1;
       }
     }
-    if (secondaryParts.length > 0) {
-      lines.push(
-        truncateToWidth(
-          `  ${th.fg("muted", "         ")} ${th.fg("muted", secondaryParts.join("  "))}`,
-          width
-        )
-      );
+  }
+
+  // Runs summary
+  lines.push(
+    truncateToWidth(
+      `  ${th.fg("muted", "Runs:")} ${th.fg("text", String(st.totalExperiments))}` +
+        `  ${th.fg("success", `${kept} kept`)}` +
+        (discarded > 0 ? `  ${th.fg("warning", `${discarded} discarded`)}` : "") +
+        (crashed > 0 ? `  ${th.fg("error", `${crashed} crashed`)}` : ""),
+      width
+    )
+  );
+
+  // Baseline: just primary metric
+  lines.push(
+    truncateToWidth(
+      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}`,
+      width
+    )
+  );
+
+  // Progress: best primary metric with delta, then secondary deltas
+  if (bestPrimary !== null) {
+    let progressLine = `  ${th.fg("muted", "Progress:")} ${th.fg("warning", th.bold(`★ ${st.metricName}: ${formatNum(bestPrimary, st.metricUnit)}`))}${th.fg("dim", ` #${bestRunNum}`)}`;
+
+    if (baseline !== null && baseline !== 0 && bestPrimary !== baseline) {
+      const pct = ((bestPrimary - baseline) / baseline) * 100;
+      const sign = pct > 0 ? "+" : "";
+      const color = isBetter(bestPrimary, baseline, st.bestDirection) ? "success" : "error";
+      progressLine += th.fg(color, ` (${sign}${pct.toFixed(1)}%)`);
     }
+
+    // Secondary metric deltas
+    if (st.secondaryMetrics.length > 0) {
+      const secParts: string[] = [];
+      for (const sm of st.secondaryMetrics) {
+        const val = bestSecondary[sm.name];
+        const bv = baselineSec[sm.name];
+        if (val !== undefined) {
+          let part = `${sm.name}: ${formatNum(val, sm.unit)}`;
+          if (bv !== undefined && bv !== 0 && val !== bv) {
+            const p = ((val - bv) / bv) * 100;
+            const s = p > 0 ? "+" : "";
+            const c = val <= bv ? "success" : "error";
+            part += th.fg(c, ` ${s}${p.toFixed(1)}%`);
+          }
+          secParts.push(part);
+        }
+      }
+      if (secParts.length > 0) {
+        progressLine += th.fg("dim", "  ") + th.fg("muted", secParts.join("  "));
+      }
+    }
+
+    lines.push(truncateToWidth(progressLine, width));
   }
 
   if (st.runTag) {
@@ -506,50 +540,57 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         const kept = state.results.filter((r) => r.status === "keep").length;
         const crashed = state.results.filter((r) => r.status === "crash").length;
         const baseline = state.bestMetric;
+        const baselineSec = findBaselineSecondary(state.results, state.secondaryMetrics);
 
-        // Find most recent kept experiment's primary metric
-        let latest: number | null = null;
+        // Find best kept primary metric, its secondary values, and run number
+        let bestPrimary: number | null = null;
+        let bestSec: Record<string, number> = {};
+        let bestRunNum = 0;
         for (let i = state.results.length - 1; i >= 0; i--) {
-          if (state.results[i].status === "keep" && state.results[i].metric > 0) {
-            latest = state.results[i].metric;
-            break;
+          const r = state.results[i];
+          if (r.status === "keep" && r.metric > 0) {
+            if (bestPrimary === null || isBetter(r.metric, bestPrimary, state.bestDirection)) {
+              bestPrimary = r.metric;
+              bestSec = r.metrics ?? {};
+              bestRunNum = i + 1;
+            }
           }
         }
 
-        const displayVal = latest ?? baseline;
+        const displayVal = bestPrimary ?? baseline;
         const parts = [
-          theme.fg("accent", "🔬 autoresearch"),
+          theme.fg("accent", "🔬"),
           theme.fg("muted", ` ${state.totalExperiments} runs`),
           theme.fg("success", ` ${kept} kept`),
-          crashed > 0 ? theme.fg("error", ` ${crashed} crashed`) : "",
+          crashed > 0 ? theme.fg("error", ` ${crashed}💥`) : "",
           theme.fg("dim", " │ "),
           theme.fg("warning", theme.bold(`★ ${state.metricName}: ${formatNum(displayVal, state.metricUnit)}`)),
+          bestRunNum > 0 ? theme.fg("dim", ` #${bestRunNum}`) : "",
         ];
 
-        // Show delta % vs baseline
-        if (baseline !== null && latest !== null && baseline !== 0 && latest !== baseline) {
-          const pct = ((latest - baseline) / baseline) * 100;
+        // Show delta % vs baseline for primary
+        if (baseline !== null && bestPrimary !== null && baseline !== 0 && bestPrimary !== baseline) {
+          const pct = ((bestPrimary - baseline) / baseline) * 100;
           const sign = pct > 0 ? "+" : "";
-          const deltaColor = isBetter(latest, baseline, state.bestDirection) ? "success" : "error";
+          const deltaColor = isBetter(bestPrimary, baseline, state.bestDirection) ? "success" : "error";
           parts.push(theme.fg(deltaColor, ` (${sign}${pct.toFixed(1)}%)`));
         }
 
-        // Show secondary metric baselines
+        // Show secondary metrics with delta %
         if (state.secondaryMetrics.length > 0) {
-          const baselines = findBaselineSecondary(
-            state.results,
-            state.secondaryMetrics
-          );
           for (const sm of state.secondaryMetrics) {
-            const val = baselines[sm.name];
+            const val = bestSec[sm.name];
+            const bv = baselineSec[sm.name];
             if (val !== undefined) {
-              parts.push(
-                theme.fg("dim", "  "),
-                theme.fg(
-                  "muted",
-                  `${sm.name}: ${formatNum(val, sm.unit)}`
-                )
-              );
+              parts.push(theme.fg("dim", "  "));
+              let secText = `${sm.name}: ${formatNum(val, sm.unit)}`;
+              if (bv !== undefined && bv !== 0 && val !== bv) {
+                const p = ((val - bv) / bv) * 100;
+                const s = p > 0 ? "+" : "";
+                const c = val <= bv ? "success" : "error";
+                secText += theme.fg(c, ` ${s}${p.toFixed(1)}%`);
+              }
+              parts.push(theme.fg("muted", secText));
             }
           }
         }
