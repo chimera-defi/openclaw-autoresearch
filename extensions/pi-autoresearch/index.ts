@@ -490,12 +490,11 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         return new Text(lines.join("\n"), 0, 0);
       });
     } else {
-      // Collapsed: compact one-liner
-      const kept = state.results.filter((r) => r.status === "keep").length;
-      const crashed = state.results.filter((r) => r.status === "crash").length;
-      const best = formatNum(state.bestMetric, state.metricUnit);
-
+      // Collapsed: compact one-liner — compute everything inside render
       ctx.ui.setWidget("autoresearch", (_tui, theme) => {
+        const kept = state.results.filter((r) => r.status === "keep").length;
+        const crashed = state.results.filter((r) => r.status === "crash").length;
+        const best = formatNum(state.bestMetric, state.metricUnit);
         const parts = [
           theme.fg("accent", "🔬 autoresearch"),
           theme.fg("muted", ` ${state.totalExperiments} runs`),
