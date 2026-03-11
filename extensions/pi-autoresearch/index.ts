@@ -623,15 +623,49 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       // ignore
     }
 
-    const systemAddition = [
+    const sysLines = [
       "\n\n## Autoresearch Mode (ACTIVE)",
       "You are in autoresearch mode. Your goal is to optimize the primary metric through an autonomous experiment loop.",
       "Use run_experiment and log_experiment tools. Optimize ruthlessly for the primary metric.",
       "Keep/discard is based on the primary metric. Secondary metrics are for observation.",
       "Run ./autoresearch.sh via run_experiment. Parse METRIC lines from output.",
-      "log_experiment auto-commits. Do NOT commit manually.",
+      "log_experiment auto-commits on keep. Do NOT commit manually.",
+      "Results are persisted to autoresearch.jsonl.",
       "NEVER STOP. Loop indefinitely until interrupted.",
-    ].join("\n");
+    ];
+
+    // Include experiment state so it survives compaction
+    if (state.results.length > 0) {
+      const baseline = findBaselineMetric(state.results);
+      let bestPrimary: number | null = null;
+      let bestRunNum = 0;
+      for (let i = state.results.length - 1; i >= 0; i--) {
+        const r = state.results[i];
+        if (r.status === "keep" && r.metric > 0) {
+          if (bestPrimary === null || isBetter(r.metric, bestPrimary, state.bestDirection)) {
+            bestPrimary = r.metric;
+            bestRunNum = i + 1;
+          }
+        }
+      }
+
+      sysLines.push("", `## Experiment State (${state.results.length} runs)`);
+      sysLines.push(`Baseline: ${state.metricName} = ${formatNum(baseline, state.metricUnit)} (#1)`);
+      if (bestPrimary !== null && baseline !== null && baseline !== 0) {
+        const pct = ((bestPrimary - baseline) / baseline) * 100;
+        sysLines.push(`Best: ${state.metricName} = ${formatNum(bestPrimary, state.metricUnit)} (#${bestRunNum}, ${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`);
+      }
+
+      // Last 6 experiments
+      const recentStart = Math.max(0, state.results.length - 6);
+      sysLines.push("", "Recent:");
+      for (let i = recentStart; i < state.results.length; i++) {
+        const r = state.results[i];
+        sysLines.push(`  #${i + 1} ${r.status} ${formatNum(r.metric, state.metricUnit)} — ${r.description}`);
+      }
+    }
+
+    const systemAddition = sysLines.join("\n");
 
     const result: Record<string, unknown> = {
       systemPrompt: event.systemPrompt + systemAddition,
@@ -852,6 +886,18 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       state.results.push(experiment);
 
+      // Persist to autoresearch.jsonl on disk
+      try {
+        const jsonlPath = path.join(ctx.cwd, "autoresearch.jsonl");
+        const line = JSON.stringify({
+          run: state.results.length,
+          ...experiment,
+        });
+        fs.appendFileSync(jsonlPath, line + "\n");
+      } catch {
+        // Don't fail if write fails
+      }
+
       // Register any new secondary metric names
       for (const name of Object.keys(secondaryMetrics)) {
         if (!state.secondaryMetrics.find((m) => m.name === name)) {
@@ -903,32 +949,35 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       text += `\n(${state.results.length} experiments total)`;
 
-      // Auto-commit with metrics trailer
-      try {
-        const resultData: Record<string, unknown> = {
-          status: params.status,
-          [state.metricName || "metric"]: params.metric,
-          ...secondaryMetrics,
-        };
-        const trailerJson = JSON.stringify(resultData);
-        const commitMsg = `${params.description}\n\nResult: ${trailerJson}`;
+      // Auto-commit only on keep — discards/crashes get reverted anyway
+      if (params.status === "keep") {
+        try {
+          const resultData: Record<string, unknown> = {
+            status: params.status,
+            [state.metricName || "metric"]: params.metric,
+            ...secondaryMetrics,
+          };
+          const trailerJson = JSON.stringify(resultData);
+          const commitMsg = `${params.description}\n\nResult: ${trailerJson}`;
 
-        const gitResult = await pi.exec("bash", ["-c",
-          `git add -A && git diff --cached --quiet && echo "NOTHING_TO_COMMIT" || git commit -m ${JSON.stringify(commitMsg)}`
-        ], { cwd: ctx.cwd, timeout: 10000 });
+          const gitResult = await pi.exec("bash", ["-c",
+            `git add -A && git diff --cached --quiet && echo "NOTHING_TO_COMMIT" || git commit -m ${JSON.stringify(commitMsg)}`
+          ], { cwd: ctx.cwd, timeout: 10000 });
 
-        const gitOutput = (gitResult.stdout + gitResult.stderr).trim();
-        if (gitOutput.includes("NOTHING_TO_COMMIT")) {
-          text += `\n📝 Git: nothing to commit (working tree clean)`;
-        } else if (gitResult.code === 0) {
-          // Extract short summary from git commit output
-          const firstLine = gitOutput.split("\n")[0] || "";
-          text += `\n📝 Git: committed — ${firstLine}`;
-        } else {
-          text += `\n⚠️ Git commit failed (exit ${gitResult.code}): ${gitOutput.slice(0, 200)}`;
+          const gitOutput = (gitResult.stdout + gitResult.stderr).trim();
+          if (gitOutput.includes("NOTHING_TO_COMMIT")) {
+            text += `\n📝 Git: nothing to commit (working tree clean)`;
+          } else if (gitResult.code === 0) {
+            const firstLine = gitOutput.split("\n")[0] || "";
+            text += `\n📝 Git: committed — ${firstLine}`;
+          } else {
+            text += `\n⚠️ Git commit failed (exit ${gitResult.code}): ${gitOutput.slice(0, 200)}`;
+          }
+        } catch (e) {
+          text += `\n⚠️ Git commit error: ${e instanceof Error ? e.message : String(e)}`;
         }
-      } catch (e) {
-        text += `\n⚠️ Git commit error: ${e instanceof Error ? e.message : String(e)}`;
+      } else {
+        text += `\n📝 Git: skipped commit (${params.status}) — revert with git reset --hard HEAD~1 if needed`;
       }
 
       return {

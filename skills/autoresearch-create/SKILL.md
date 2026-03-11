@@ -160,9 +160,11 @@ LOOP FOREVER:
    - More radical changes if incremental ones have plateaued
 2. Edit files with the idea.
 3. Use `run_experiment` with `./autoresearch.sh`.
-4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` auto-commits with the description and a `Result: {...}` trailer.
+4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes.
+   - On `keep`: `log_experiment` auto-commits with the description and a `Result: {...}` trailer.
+   - On `discard`/`crash`: `log_experiment` records it but skips the commit. Then `git checkout -- .` to revert your changes.
 5. **Keep/discard is based on the primary metric.** If it improved AND constraints are met → `keep`. If a secondary metric got worse but primary improved, still **keep it**.
-6. If the primary metric is worse or equal → `log_experiment` with `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert. In extreme cases you may discard a tiny primary improvement that catastrophically degrades a secondary metric — document why in the description.
+6. If the primary metric is worse or equal → `log_experiment` with `discard` or `crash`, then `git checkout -- .` to revert. In extreme cases you may discard a tiny primary improvement that catastrophically degrades a secondary metric — document why in the description.
 7. Repeat.
 
 ### Simplicity criterion
