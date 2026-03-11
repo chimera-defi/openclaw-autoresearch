@@ -825,13 +825,8 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         text += `✅ PASSED in ${durationSeconds.toFixed(1)}s\n`;
       }
 
-      if (state.bestMetric !== null && passed) {
-        const delta = durationSeconds - state.bestMetric;
-        if (isBetter(durationSeconds, state.bestMetric, state.bestDirection)) {
-          text += `🎉 NEW BEST! Improved by ${Math.abs(delta).toFixed(1)}s over baseline (${formatNum(state.bestMetric, state.metricUnit)})\n`;
-        } else {
-          text += `❌ Slower by ${delta.toFixed(1)}s vs baseline (${formatNum(state.bestMetric, state.metricUnit)}). Consider reverting.\n`;
-        }
+      if (state.bestMetric !== null) {
+        text += `📊 Current best ${state.metricName}: ${formatNum(state.bestMetric, state.metricUnit)}\n`;
       }
 
       text += `\nLast 80 lines of output:\n${details.tailOutput}`;
