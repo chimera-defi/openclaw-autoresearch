@@ -479,7 +479,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         lines.push(...renderDashboardLines(state, width, theme));
 
         lines.push(
-          `  ${theme.fg("dim", "ctrl+r to collapse")}`
+          `  ${theme.fg("dim", "ctrl+e to collapse")}`
         );
         lines.push("");
 
@@ -525,7 +525,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           parts.push(theme.fg("dim", ` │ ${state.runTag}`));
         }
 
-        parts.push(theme.fg("dim", "  (ctrl+r to expand)"));
+        parts.push(theme.fg("dim", "  (ctrl+e to expand)"));
 
         return new Text(parts.join(""), 0, 0);
       });
@@ -847,7 +847,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   // Ctrl+R — toggle dashboard expand/collapse
   // -----------------------------------------------------------------------
 
-  pi.registerShortcut("ctrl+r", {
+  pi.registerShortcut("ctrl+e", {
     description: "Toggle autoresearch dashboard",
     handler: async (ctx) => {
       if (state.totalExperiments === 0) {
