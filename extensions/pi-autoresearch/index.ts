@@ -281,30 +281,12 @@ function renderDashboardLines(
   const baselineRunNum = findBaselineRunNum(st.results);
   lines.push(
     truncateToWidth(
-      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}` +
+      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `★ ${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}` +
         (baselineRunNum > 0 ? th.fg("dim", ` #${baselineRunNum}`) : ""),
       width
     )
   );
 
-  // Baseline secondary metrics on next line
-  if (st.secondaryMetrics.length > 0) {
-    const secParts: string[] = [];
-    for (const sm of st.secondaryMetrics) {
-      const val = baselineSec[sm.name];
-      if (val !== undefined) {
-        secParts.push(`${sm.name}: ${formatNum(val, sm.unit)}`);
-      }
-    }
-    if (secParts.length > 0) {
-      lines.push(
-        truncateToWidth(
-          `  ${th.fg("dim", "          " + secParts.join("  "))}`,
-          width
-        )
-      );
-    }
-  }
 
   // Progress: best primary metric with delta + run number
   if (bestPrimary !== null) {
