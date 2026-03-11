@@ -148,28 +148,51 @@ echo "METRIC parse_us=$parse"
 
 ## Step 3: Experiment Loop
 
+You are a completely autonomous researcher. You try ideas, keep what works, discard what doesn't, and iterate.
+
 LOOP FOREVER:
 
-1. Think of an experiment idea. Read the codebase for inspiration. Consider:
+1. **Think of an experiment idea.** Read the codebase for inspiration. Consider:
    - Config changes (parallelism, caching, pooling, environment)
    - Removing unnecessary work (unused setup, redundant transforms)
    - Structural changes (splitting, merging, reordering)
-2. Edit files with the idea
-3. Use `run_experiment` with `./autoresearch.sh`
-4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` automatically commits with the description as commit message and a `Result: {...}` trailer containing all metrics.
-5. **Keep/discard decision is based primarily on the primary metric.** If the primary metric improved AND constraints are met → `log_experiment` with status `keep`. If a secondary metric got worse but primary improved, **keep it**.
-6. If the **primary metric** is worse or equal OR constraints broken → `log_experiment` with status `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert. In extreme cases you may discard an experiment that improved the primary metric slightly but catastrophically degraded a secondary metric — if you do this, **explain your reasoning in the description**.
-7. Repeat
+   - Combining previous near-misses that each almost worked
+   - More radical changes if incremental ones have plateaued
+2. Edit files with the idea.
+3. Use `run_experiment` with `./autoresearch.sh`.
+4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` auto-commits with the description and a `Result: {...}` trailer.
+5. **Keep/discard is based on the primary metric.** If it improved AND constraints are met → `keep`. If a secondary metric got worse but primary improved, still **keep it**.
+6. If the primary metric is worse or equal → `log_experiment` with `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert. In extreme cases you may discard a tiny primary improvement that catastrophically degrades a secondary metric — document why in the description.
+7. Repeat.
 
-**Simplicity criterion**: all else being equal, simpler is better. Removing code for equal results is a win.
+### Simplicity criterion
 
-**⚠️ Optimize ruthlessly for the primary metric.** Secondary metrics are for monitoring tradeoffs — the primary metric drives almost all keep/discard decisions. Only override this in extreme situations (e.g. primary improved 0.1% but a secondary metric 10x'd). When overriding, document why in the experiment description.
+All else being equal, simpler is better. Weigh complexity cost against improvement magnitude:
+- A small improvement that adds ugly complexity? Probably not worth it.
+- Removing code and getting equal or better results? Definitely keep — that's a simplification win.
+- A near-zero improvement but much simpler code? Keep.
 
-**NEVER STOP.** Loop indefinitely until the user interrupts. Do not ask "should I continue?". The user can check progress anytime with ctrl+x.
+### Never stop
 
-**Resuming**: If you find `autoresearch.md` and `autoresearch.sh` already exist in the working directory, read them to understand the experiment context and continue the loop — no need to re-gather context or re-run the baseline.
+**NEVER STOP.** Loop indefinitely until the user interrupts. Do not ask "should I continue?" or "is this a good stopping point?". The user may be away and expects you to work autonomously. If you run out of obvious ideas, think harder — re-read the in-scope files for new angles, try combining previous near-misses, try more radical changes. The loop runs until interrupted, period.
 
-**Crashes**: if it's a trivial fix (typo, missing import), fix and retry. If fundamentally broken, discard and move on.
+### Optimize ruthlessly
+
+**⚠️ The primary metric is king.** Secondary metrics are for monitoring tradeoffs — they almost never affect keep/discard. Only override in extreme situations (tiny primary gain + catastrophic secondary regression), and document why.
+
+### Don't thrash
+
+If you find yourself repeatedly reverting, step back and think about a different approach. Don't keep trying small variations of the same failed idea. Move on to something structurally different.
+
+### Crash handling
+
+Use your judgment:
+- **Dumb fix** (typo, missing import, syntax error): fix it and re-run.
+- **Fundamentally broken** (the idea itself doesn't work): log as `crash`, revert, move on. Don't spend more than a couple of attempts on a broken idea.
+
+### Resuming
+
+If `autoresearch.md` and `autoresearch.sh` already exist, read them and continue the loop — no need to re-gather context or re-run the baseline. Check the git log for what's been tried recently.
 
 ## Example Domains
 
