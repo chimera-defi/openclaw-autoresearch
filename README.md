@@ -15,7 +15,7 @@ Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). W
 | | |
 |---|---|
 | **Extension** | Tools + live widget + `/autoresearch` dashboard |
-| **Meta-skill** | Generates domain-specific skills from a short conversation |
+| **Skill** | Gathers what to optimize, writes session files, starts the loop |
 
 ### Extension tools
 
@@ -30,9 +30,14 @@ Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). W
 - **Status widget** — always visible above the editor: `🔬 autoresearch 12 runs 8 kept │ best: 42.3s`
 - **`/autoresearch`** — full results dashboard (`Ctrl+X` to toggle, `Escape` to close)
 
-### Meta-skill
+### Skill
 
-`/skill:autoresearch-create` asks a few questions and generates a ready-to-use domain skill.
+`autoresearch-create` asks a few questions (or infers from context) about your goal, command, metric, and files in scope — then writes two files and starts the loop immediately:
+
+| File | Purpose |
+|------|---------|
+| `autoresearch.md` | Session document — objective, metrics, files in scope, what's been tried. A fresh agent can resume from this alone. |
+| `autoresearch.sh` | Benchmark script — pre-checks, runs the workload, outputs `METRIC name=number` lines. |
 
 ---
 
@@ -58,21 +63,17 @@ Then `/reload` in pi.
 
 ## Usage
 
-### 1. Generate a domain skill
+### 1. Start autoresearch
 
 ```
 /skill:autoresearch-create
 ```
 
-Answer a few questions about what you want to optimize. The agent generates and installs a skill like `autoresearch-vitest-speed`.
+The agent asks about your goal, command, metric, and files in scope — or infers them from context. It then creates a branch, writes `autoresearch.md` and `autoresearch.sh`, runs the baseline, and starts looping immediately.
 
-### 2. Start the loop
+### 2. The loop
 
-```
-/skill:autoresearch-vitest-speed
-```
-
-The agent enters the experiment loop: edit → commit → `run_experiment` → `log_experiment` → keep or revert → repeat.
+The agent runs autonomously: edit → commit → `run_experiment` → `log_experiment` → keep or revert → repeat. It never stops unless interrupted.
 
 ### 3. Monitor progress
 
