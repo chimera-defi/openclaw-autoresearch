@@ -1,44 +1,61 @@
-# autoresearch for pi
+# 🔬 pi-autoresearch
 
-A [pi](https://github.com/badlogic/pi) extension + skill inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). Generic autonomous experiment loop — works for any "run, measure, keep or discard" workflow.
+> Autonomous experiment loop for [pi](https://github.com/badlogic/pi) — run, measure, keep or discard, repeat forever.
+
+Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). Works for any optimization target: test speed, bundle size, LLM training, build times, Lighthouse scores.
+
+---
+
+<!-- screenshot -->
+<!-- Add screenshot here -->
+
+---
 
 ## What's included
 
-```
-extensions/pi-autoresearch/index.ts   — pi extension (tools + widget + dashboard)
-skills/autoresearch-create/SKILL.md — meta-skill to generate domain-specific skills
-```
+| | |
+|---|---|
+| **Extension** | Tools + live widget + `/autoresearch` dashboard |
+| **Meta-skill** | Generates domain-specific skills from a short conversation |
 
-### Extension
+### Extension tools
 
-| Feature | Description |
-|---------|-------------|
-| `run_experiment` tool | Runs any command, times wall-clock duration, captures output, detects pass/fail |
-| `log_experiment` tool | Records results with session-persisted state (survives restarts, supports branching) |
-| Status widget | `🔬 autoresearch 12 runs 8 kept │ best: 42.3s` above the editor |
-| `/autoresearch` command | Interactive dashboard with full results table |
+| Tool | Description |
+|------|-------------|
+| `init_experiment` | One-time session config — name, metric, unit, direction |
+| `run_experiment` | Runs any command, times wall-clock duration, captures output |
+| `log_experiment` | Records result, auto-commits, updates widget and dashboard |
+
+### UI
+
+- **Status widget** — always visible above the editor: `🔬 autoresearch 12 runs 8 kept │ best: 42.3s`
+- **`/autoresearch`** — full results dashboard (`Ctrl+X` to toggle, `Escape` to close)
 
 ### Meta-skill
 
-`/skill:autoresearch-create` asks a few questions (metric, command, files in scope, constraints, ideas) and generates a domain-specific skill ready to use.
+`/skill:autoresearch-create` asks a few questions and generates a ready-to-use domain skill.
+
+---
 
 ## Install
 
 ```bash
-pi install https://github.com/shopify-playground/pi-autoresearch
+pi install https://github.com/davebcn87/pi-autoresearch
 ```
 
-Or manually:
+<details>
+<summary>Manual install</summary>
 
 ```bash
-# Extension
 cp -r extensions/pi-autoresearch ~/.pi/agent/extensions/
-
-# Skill
 cp -r skills/autoresearch-create ~/.pi/agent/skills/
 ```
 
 Then `/reload` in pi.
+
+</details>
+
+---
 
 ## Usage
 
@@ -48,23 +65,23 @@ Then `/reload` in pi.
 /skill:autoresearch-create
 ```
 
-> "I want to optimize vitest execution time in this project"
+Answer a few questions about what you want to optimize. The agent generates and installs a skill like `autoresearch-vitest-speed`.
 
-The agent generates a skill like `autoresearch-vitest-speed` and installs it.
-
-### 2. Run it
+### 2. Start the loop
 
 ```
 /skill:autoresearch-vitest-speed
 ```
 
-The agent enters the experiment loop: edit → commit → `run_experiment` → `log_experiment` → keep or revert → repeat forever.
+The agent enters the experiment loop: edit → commit → `run_experiment` → `log_experiment` → keep or revert → repeat.
 
-### 3. Monitor
+### 3. Monitor progress
 
 - **Widget** — always visible above the editor
-- **`/autoresearch`** — full dashboard (press Escape to close)
-- **Escape** — interrupt the agent anytime, ask for a summary
+- **`/autoresearch`** — full dashboard with results table and best run
+- **`Escape`** — interrupt anytime and ask for a summary
+
+---
 
 ## Example domains
 
@@ -76,21 +93,27 @@ The agent enters the experiment loop: edit → commit → `run_experiment` → `
 | Build speed | seconds ↓ | `pnpm build` |
 | Lighthouse | perf score ↑ | `lighthouse http://localhost:3000 --output=json` |
 
+---
+
 ## How it works
 
-The **extension** is domain-agnostic infrastructure — it runs commands, tracks results, renders UI. The **skill** encodes domain knowledge — what to optimize, what's in scope, what ideas to try. This separation means one extension serves unlimited domains.
+The **extension** is domain-agnostic infrastructure. The **skill** encodes domain knowledge. This separation means one extension serves unlimited domains.
 
 ```
-┌─────────────────────┐     ┌──────────────────────────┐
+┌──────────────────────┐     ┌──────────────────────────┐
 │  Extension (global)  │     │  Skill (per-domain)       │
-│                     │     │                          │
-│  run_experiment     │◄────│  command: pnpm test      │
-│  log_experiment     │     │  metric: seconds (lower) │
-│  widget + dashboard │     │  scope: vitest configs   │
-│                     │     │  ideas: pool, parallel…  │
-└─────────────────────┘     └──────────────────────────┘
+│                      │     │                           │
+│  run_experiment      │◄────│  command: pnpm test       │
+│  log_experiment      │     │  metric: seconds (lower)  │
+│  widget + dashboard  │     │  scope: vitest configs    │
+│                      │     │  ideas: pool, parallel…   │
+└──────────────────────┘     └──────────────────────────┘
 ```
+
+Results are persisted to `autoresearch.jsonl` — survives restarts, supports branching, readable by humans.
+
+---
 
 ## License
 
-MIT
+MIT © [Tobi Lutke](https://github.com/tobi), [David Cortés](https://github.com/davebcn87)
