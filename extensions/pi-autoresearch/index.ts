@@ -671,86 +671,33 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
-  // When in autoresearch mode, inject rules + system prompt on every turn
+  // When in autoresearch mode, append autoresearch.md to system prompt.
+  // autoresearch.md is static (only changes when user asks), so this is
+  // cache-safe — the system prompt stays identical between turns as long
+  // as the file doesn't change.
   pi.on("before_agent_start", async (event, ctx) => {
     if (!autoresearchMode) return;
 
+    const parts: string[] = [
+      "\n\n## Autoresearch Mode (ACTIVE)",
+      "You are in autoresearch mode. Optimize the primary metric through an autonomous experiment loop.",
+      "Use run_experiment and log_experiment tools. NEVER STOP until interrupted.",
+    ];
+
+    // Include autoresearch.md content (static rules — cache-safe)
     const mdPath = path.join(ctx.cwd, "autoresearch.md");
-    let rulesContent: string | null = null;
     try {
       if (fs.existsSync(mdPath)) {
-        rulesContent = fs.readFileSync(mdPath, "utf-8");
+        const content = fs.readFileSync(mdPath, "utf-8");
+        parts.push("", content);
       }
     } catch {
       // ignore
     }
 
-    // Static instructions in system prompt (cacheable — doesn't change between turns)
-    const systemAddition = [
-      "\n\n## Autoresearch Mode (ACTIVE)",
-      "You are in autoresearch mode. Your goal is to optimize the primary metric through an autonomous experiment loop.",
-      "Use run_experiment and log_experiment tools. Optimize ruthlessly for the primary metric.",
-      "Keep/discard is based on the primary metric. Secondary metrics are for observation.",
-      "Run ./autoresearch.sh via run_experiment. Parse METRIC lines from output.",
-      "log_experiment auto-commits on keep. Do NOT commit manually.",
-      "Results are persisted to autoresearch.jsonl.",
-      "NEVER STOP. Loop indefinitely until interrupted.",
-    ].join("\n");
-
-    // Dynamic state in message (changes each turn — must NOT go in system prompt to preserve cache)
-    const msgParts: string[] = [];
-
-    if (rulesContent) {
-      msgParts.push(`<autoresearch-rules>\n${rulesContent}\n</autoresearch-rules>`);
-    }
-
-    if (state.results.length > 0) {
-      const baseline = findBaselineMetric(state.results);
-      let bestPrimary: number | null = null;
-      let bestRunNum = 0;
-      for (let i = state.results.length - 1; i >= 0; i--) {
-        const r = state.results[i];
-        if (r.status === "keep" && r.metric > 0) {
-          if (bestPrimary === null || isBetter(r.metric, bestPrimary, state.bestDirection)) {
-            bestPrimary = r.metric;
-            bestRunNum = i + 1;
-          }
-        }
-      }
-
-      const stateTitle = state.name
-        ? `## ${state.name} (${state.results.length} runs)`
-        : `## Experiment State (${state.results.length} runs)`;
-      const stateLines = [stateTitle];
-      stateLines.push(`Baseline: ${state.metricName} = ${formatNum(baseline, state.metricUnit)} (#1)`);
-      if (bestPrimary !== null && baseline !== null && baseline !== 0) {
-        const pct = ((bestPrimary - baseline) / baseline) * 100;
-        stateLines.push(`Best: ${state.metricName} = ${formatNum(bestPrimary, state.metricUnit)} (#${bestRunNum}, ${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`);
-      }
-
-      const recentStart = Math.max(0, state.results.length - 6);
-      stateLines.push("", "Recent:");
-      for (let i = recentStart; i < state.results.length; i++) {
-        const r = state.results[i];
-        stateLines.push(`  #${i + 1} ${r.status} ${formatNum(r.metric, state.metricUnit)} — ${r.description}`);
-      }
-
-      msgParts.push(`<autoresearch-state>\n${stateLines.join("\n")}\n</autoresearch-state>`);
-    }
-
-    const result: Record<string, unknown> = {
-      systemPrompt: event.systemPrompt + systemAddition,
+    return {
+      systemPrompt: event.systemPrompt + parts.join("\n"),
     };
-
-    if (msgParts.length > 0) {
-      result.message = {
-        customType: "autoresearch-context",
-        content: msgParts.join("\n\n"),
-        display: false,
-      };
-    }
-
-    return result;
   });
 
   // -----------------------------------------------------------------------
