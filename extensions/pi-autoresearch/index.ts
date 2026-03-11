@@ -441,6 +441,10 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         state = details.state;
         // Migrate older state that lacks secondaryMetrics
         if (!state.secondaryMetrics) state.secondaryMetrics = [];
+        // Migrate old default "s" unit — was never explicitly configured
+        if (state.metricUnit === "s" && state.metricName === "metric") {
+          state.metricUnit = "";
+        }
         // Migrate older results that lack metrics/newBaseline
         for (const r of state.results) {
           if (!r.metrics) r.metrics = {};
