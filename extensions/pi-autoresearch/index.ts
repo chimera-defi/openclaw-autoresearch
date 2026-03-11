@@ -476,25 +476,81 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       runTag: null,
     };
 
-    for (const entry of ctx.sessionManager.getBranch()) {
-      if (entry.type !== "message") continue;
-      const msg = entry.message;
-      if (msg.role !== "toolResult" || msg.toolName !== "log_experiment")
-        continue;
-      const details = msg.details as LogDetails | undefined;
-      if (details?.state) {
-        state = details.state;
-        // Migrate older state that lacks secondaryMetrics
-        if (!state.secondaryMetrics) state.secondaryMetrics = [];
-        // Migrate old default "s" unit — was never explicitly configured
-        if (state.metricUnit === "s" && state.metricName === "metric") {
-          state.metricUnit = "";
+    // Primary: read from autoresearch.jsonl (alongside autoresearch.md/sh)
+    const jsonlPath = path.join(ctx.cwd, "autoresearch.jsonl");
+    let loadedFromJsonl = false;
+    try {
+      if (fs.existsSync(jsonlPath)) {
+        const lines = fs.readFileSync(jsonlPath, "utf-8").trim().split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+
+            // Config header line
+            if (entry.type === "config") {
+              if (entry.metricName) state.metricName = entry.metricName;
+              if (entry.metricUnit !== undefined) state.metricUnit = entry.metricUnit;
+              if (entry.bestDirection) state.bestDirection = entry.bestDirection;
+              continue;
+            }
+
+            // Experiment result line
+            state.results.push({
+              commit: entry.commit ?? "",
+              metric: entry.metric ?? 0,
+              metrics: entry.metrics ?? {},
+              status: entry.status ?? "keep",
+              description: entry.description ?? "",
+              timestamp: entry.timestamp ?? 0,
+            });
+
+            // Register secondary metrics
+            for (const name of Object.keys(entry.metrics ?? {})) {
+              if (!state.secondaryMetrics.find((m) => m.name === name)) {
+                let unit = "";
+                if (name.endsWith("_µs") || name.includes("µs")) unit = "µs";
+                else if (name.endsWith("_ms") || name.includes("ms")) unit = "ms";
+                else if (name.endsWith("_s") || name.includes("sec")) unit = "s";
+                state.secondaryMetrics.push({ name, unit });
+              }
+            }
+          } catch {
+            // Skip malformed lines
+          }
         }
-        // Migrate older results that lack metrics
-        for (const r of state.results) {
-          if (!r.metrics) r.metrics = {};
+        if (state.results.length > 0) {
+          loadedFromJsonl = true;
+          state.bestMetric = findBaselineMetric(state.results);
         }
       }
+    } catch {
+      // Fall through to session history
+    }
+
+    // Fallback: reconstruct from session history (backward compat)
+    if (!loadedFromJsonl) {
+      for (const entry of ctx.sessionManager.getBranch()) {
+        if (entry.type !== "message") continue;
+        const msg = entry.message;
+        if (msg.role !== "toolResult" || msg.toolName !== "log_experiment")
+          continue;
+        const details = msg.details as LogDetails | undefined;
+        if (details?.state) {
+          state = details.state;
+          if (!state.secondaryMetrics) state.secondaryMetrics = [];
+          if (state.metricUnit === "s" && state.metricName === "metric") {
+            state.metricUnit = "";
+          }
+          for (const r of state.results) {
+            if (!r.metrics) r.metrics = {};
+          }
+        }
+      }
+    }
+
+    // Also detect autoresearch mode from file presence
+    if (fs.existsSync(path.join(ctx.cwd, "autoresearch.md"))) {
+      autoresearchMode = true;
     }
 
     updateWidget(ctx);
@@ -886,14 +942,27 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       state.results.push(experiment);
 
-      // Persist to autoresearch.jsonl on disk
+      // Persist to autoresearch.jsonl on disk (alongside autoresearch.md/sh)
       try {
         const jsonlPath = path.join(ctx.cwd, "autoresearch.jsonl");
-        const line = JSON.stringify({
+        let output = "";
+
+        // Write config header on first experiment
+        if (state.results.length === 1) {
+          output += JSON.stringify({
+            type: "config",
+            metricName: state.metricName,
+            metricUnit: state.metricUnit,
+            bestDirection: state.bestDirection,
+          }) + "\n";
+        }
+
+        output += JSON.stringify({
           run: state.results.length,
           ...experiment,
-        });
-        fs.appendFileSync(jsonlPath, line + "\n");
+        }) + "\n";
+
+        fs.appendFileSync(jsonlPath, output);
       } catch {
         // Don't fail if write fails
       }
