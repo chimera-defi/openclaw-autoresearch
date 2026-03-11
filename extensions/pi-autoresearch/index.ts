@@ -448,6 +448,7 @@ function renderDashboardLines(
 
 export default function autoresearchExtension(pi: ExtensionAPI) {
   let dashboardExpanded = false;
+  let autoresearchMode = false;
   let lastCtx: ExtensionContext | null = null;
 
   let state: ExperimentState = {
@@ -608,23 +609,43 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
-  // Inject autoresearch.md into context on every turn
-  pi.on("before_agent_start", async (_event, ctx) => {
+  // When in autoresearch mode, inject rules + system prompt on every turn
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (!autoresearchMode) return;
+
     const mdPath = path.join(ctx.cwd, "autoresearch.md");
+    let rulesContent: string | null = null;
     try {
       if (fs.existsSync(mdPath)) {
-        const content = fs.readFileSync(mdPath, "utf-8");
-        return {
-          message: {
-            customType: "autoresearch-context",
-            content: `<autoresearch-rules>\n${content}\n</autoresearch-rules>`,
-            display: false,
-          },
-        };
+        rulesContent = fs.readFileSync(mdPath, "utf-8");
       }
     } catch {
-      // Silently ignore read errors
+      // ignore
     }
+
+    const systemAddition = [
+      "\n\n## Autoresearch Mode (ACTIVE)",
+      "You are in autoresearch mode. Your goal is to optimize the primary metric through an autonomous experiment loop.",
+      "Use run_experiment and log_experiment tools. Optimize ruthlessly for the primary metric.",
+      "Keep/discard is based on the primary metric. Secondary metrics are for observation.",
+      "Run ./autoresearch.sh via run_experiment. Parse METRIC lines from output.",
+      "log_experiment auto-commits. Do NOT commit manually.",
+      "NEVER STOP. Loop indefinitely until interrupted.",
+    ].join("\n");
+
+    const result: Record<string, unknown> = {
+      systemPrompt: event.systemPrompt + systemAddition,
+    };
+
+    if (rulesContent) {
+      result.message = {
+        customType: "autoresearch-context",
+        content: `<autoresearch-rules>\n${rulesContent}\n</autoresearch-rules>`,
+        display: false,
+      };
+    }
+
+    return result;
   });
 
   // -----------------------------------------------------------------------
@@ -995,14 +1016,37 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   // -----------------------------------------------------------------------
 
   pi.registerCommand("autoresearch", {
-    description: "Start or resume an autoresearch experiment loop",
+    description: "Toggle autoresearch mode on/off, or start a new experiment",
     handler: async (args, ctx) => {
-      // Send the skill invocation as a user message so the LLM picks it up
-      ctx.sendUserMessage(
-        args
-          ? `Start autoresearch: ${args}`
-          : "Start or resume autoresearch. Read autoresearch.md if it exists, otherwise gather context and set up."
-      );
+      if (args === "off") {
+        autoresearchMode = false;
+        ctx.ui.notify("Autoresearch mode OFF", "info");
+        return;
+      }
+
+      autoresearchMode = true;
+
+      const mdPath = path.join(ctx.cwd, "autoresearch.md");
+      const hasRules = fs.existsSync(mdPath);
+
+      if (hasRules) {
+        ctx.ui.notify("Autoresearch mode ON — rules loaded from autoresearch.md", "success");
+        if (args) {
+          // User gave specific instructions, pass them along
+          ctx.sendUserMessage(`Autoresearch mode active. ${args}`);
+        } else {
+          ctx.sendUserMessage(
+            "Autoresearch mode active. Read autoresearch.md and autoresearch.sh, then resume the experiment loop."
+          );
+        }
+      } else {
+        ctx.ui.notify("Autoresearch mode ON — no autoresearch.md found, setting up", "info");
+        ctx.sendUserMessage(
+          args
+            ? `Start autoresearch: ${args}`
+            : "Start autoresearch. No autoresearch.md found — gather context and set up the experiment (create autoresearch.md and autoresearch.sh)."
+        );
+      }
     },
   });
 }
