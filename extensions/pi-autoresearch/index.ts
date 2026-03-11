@@ -108,7 +108,7 @@ const LogParams = Type.Object({
   new_baseline: Type.Optional(
     Type.Boolean({
       description:
-        "Mark this experiment as the new baseline reference point (default: false). The most recent baseline is used as the 'best' metric for comparison.",
+        "DO NOT set this unless the benchmark script changed so much that old metrics are incomparable. The first experiment is automatically the baseline. Default: false. Almost never needed.",
     })
   ),
   metric_name: Type.Optional(
@@ -776,6 +776,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "After run_experiment, always call log_experiment to record the result.",
       "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
       "Use status 'keep' if the metric improved, 'discard' if worse, 'crash' if it failed.",
+      "Do NOT set new_baseline. The first experiment is automatically the baseline. Only set new_baseline if you fundamentally changed the benchmark and old metrics are no longer comparable.",
     ],
     parameters: LogParams,
 
