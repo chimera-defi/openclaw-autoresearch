@@ -35,8 +35,6 @@ interface ExperimentResult {
   metrics: Record<string, number>;
   status: "keep" | "discard" | "crash";
   description: string;
-  /** If true, this row becomes the new reference baseline */
-  newBaseline: boolean;
   timestamp: number;
 }
 
@@ -47,7 +45,7 @@ interface MetricDef {
 
 interface ExperimentState {
   results: ExperimentResult[];
-  /** Best primary metric = metric from most recent newBaseline row */
+  /** Baseline primary metric (from first experiment) */
   bestMetric: number | null;
   bestDirection: "lower" | "higher";
   metricName: string;
@@ -103,12 +101,6 @@ const LogParams = Type.Object({
     Type.Record(Type.String(), Type.Number(), {
       description:
         'Additional metrics to track as { name: value } pairs, e.g. { "compile_µs": 4200, "render_µs": 9800 }. These are shown alongside the primary metric for tradeoff monitoring.',
-    })
-  ),
-  new_baseline: Type.Optional(
-    Type.Boolean({
-      description:
-        "DO NOT set this unless the benchmark script changed so much that old metrics are incomparable. The first experiment is automatically the baseline. Default: false. Almost never needed.",
     })
   ),
   metric_name: Type.Optional(
@@ -172,24 +164,13 @@ function isBetter(
   return direction === "lower" ? current < best : current > best;
 }
 
-/** Find the metric value from the most recent new-baseline row */
+/** Baseline = first experiment */
 function findBaselineMetric(results: ExperimentResult[]): number | null {
-  for (let i = results.length - 1; i >= 0; i--) {
-    if (results[i].newBaseline) return results[i].metric;
-  }
-  return null;
-}
-
-/** Find the 1-based run number of the most recent baseline row */
-function findBaselineRunNum(results: ExperimentResult[]): number {
-  for (let i = results.length - 1; i >= 0; i--) {
-    if (results[i].newBaseline) return i + 1;
-  }
-  return 0;
+  return results.length > 0 ? results[0].metric : null;
 }
 
 /**
- * Find secondary metric baselines from the most recent new-baseline row.
+ * Find secondary metric baselines from the first experiment.
  * For metrics that didn't exist at baseline time, falls back to the first
  * occurrence of that metric across all results.
  */
@@ -197,14 +178,9 @@ function findBaselineSecondary(
   results: ExperimentResult[],
   knownMetrics?: MetricDef[]
 ): Record<string, number> {
-  // Start with the most recent baseline's metrics
-  let base: Record<string, number> = {};
-  for (let i = results.length - 1; i >= 0; i--) {
-    if (results[i].newBaseline) {
-      base = { ...(results[i].metrics ?? {}) };
-      break;
-    }
-  }
+  const base: Record<string, number> = results.length > 0
+    ? { ...(results[0].metrics ?? {}) }
+    : {};
 
   // Fill in any known metrics missing from baseline with their first occurrence
   if (knownMetrics) {
@@ -277,12 +253,10 @@ function renderDashboardLines(
     )
   );
 
-  // Baseline: primary metric + run number
-  const baselineRunNum = findBaselineRunNum(st.results);
+  // Baseline: first run's primary metric
   lines.push(
     truncateToWidth(
-      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `★ ${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}` +
-        (baselineRunNum > 0 ? th.fg("dim", ` #${baselineRunNum}`) : ""),
+      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `★ ${st.metricName}: ${formatNum(baseline, st.metricUnit)} #1`)}`,
       width
     )
   );
@@ -403,13 +377,11 @@ function renderDashboardLines(
           ? "error"
           : "warning";
 
-    const isBaseline = r.newBaseline;
-
     // Primary metric with color coding
     const primaryStr = formatNum(r.metric, st.metricUnit);
     let primaryColor: string = "text";
-    if (isBaseline) {
-      primaryColor = "warning";
+    if (i === 0) {
+      primaryColor = "muted"; // baseline row
     } else if (
       baselinePrimary !== null &&
       r.status === "keep" &&
@@ -437,8 +409,8 @@ function renderDashboardLines(
         const secStr = formatNum(val, sm.unit);
         let secColor: string = "dim";
         const bv = baselineSecondary[sm.name];
-        if (isBaseline) {
-          secColor = "muted";
+        if (i === 0) {
+          secColor = "muted"; // baseline row
         } else if (bv !== undefined && bv !== 0) {
           secColor = val <= bv ? "success" : "error";
         }
@@ -507,10 +479,9 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         if (state.metricUnit === "s" && state.metricName === "metric") {
           state.metricUnit = "";
         }
-        // Migrate older results that lack metrics/newBaseline
+        // Migrate older results that lack metrics
         for (const r of state.results) {
           if (!r.metrics) r.metrics = {};
-          if (r.newBaseline === undefined) r.newBaseline = false;
         }
       }
     }
@@ -776,15 +747,12 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "After run_experiment, always call log_experiment to record the result.",
       "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
       "Use status 'keep' if the metric improved, 'discard' if worse, 'crash' if it failed.",
-      "Do NOT set new_baseline. The first experiment is automatically the baseline. Only set new_baseline if you fundamentally changed the benchmark and old metrics are no longer comparable.",
+
     ],
     parameters: LogParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const secondaryMetrics = params.metrics ?? {};
-      // First experiment is always a baseline; explicit new_baseline resets it
-      const isFirstExperiment = state.totalExperiments === 0;
-      const isBaseline = isFirstExperiment || (params.new_baseline ?? false);
 
       // Apply metric config (typically set on first call, sticky after that)
       if (params.metric_name) state.metricName = params.metric_name;
@@ -799,7 +767,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         metrics: secondaryMetrics,
         status: params.status,
         description: params.description,
-        newBaseline: isBaseline,
         timestamp: Date.now(),
       };
 
@@ -809,7 +776,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       // Register any new secondary metric names we haven't seen before
       for (const name of Object.keys(secondaryMetrics)) {
         if (!state.secondaryMetrics.find((m) => m.name === name)) {
-          // Infer unit from name suffix or default
           let unit = "";
           if (name.endsWith("_µs") || name.includes("µs")) unit = "µs";
           else if (name.endsWith("_ms") || name.includes("ms")) unit = "ms";
@@ -818,30 +784,17 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         }
       }
 
-      // Update bestMetric: use most recent baseline's primary metric
-      if (isBaseline && params.metric > 0) {
-        state.bestMetric = params.metric;
-      } else if (state.bestMetric === null && params.status === "keep" && params.metric > 0) {
-        // If no baseline has ever been set, fall back to absolute best for compatibility
-        state.bestMetric = params.metric;
-      }
-
-      // If a new baseline was set, recalculate from it
-      const baselineMetric = findBaselineMetric(state.results);
-      if (baselineMetric !== null) {
-        state.bestMetric = baselineMetric;
-      }
+      // Baseline = first run
+      state.bestMetric = findBaselineMetric(state.results);
 
       updateWidget(ctx);
 
       // Build response text
-      let text = `Logged #${state.totalExperiments}: ${experiment.status}`;
-      if (isBaseline) text += " NEW BASELINE";
-      text += ` — ${experiment.description}`;
+      let text = `Logged #${state.totalExperiments}: ${experiment.status} — ${experiment.description}`;
 
       if (state.bestMetric !== null) {
         text += `\nBaseline ${state.metricName}: ${formatNum(state.bestMetric, state.metricUnit)}`;
-        if (!isBaseline && params.status === "keep" && params.metric > 0) {
+        if (state.totalExperiments > 1 && params.status === "keep" && params.metric > 0) {
           const delta = params.metric - state.bestMetric;
           const pct = ((delta / state.bestMetric) * 100).toFixed(1);
           const sign = delta > 0 ? "+" : "";
@@ -858,7 +811,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           const unit = def?.unit ?? "";
           let part = `${name}: ${formatNum(value, unit)}`;
           const bv = baselines[name];
-          if (bv !== undefined && !isBaseline && bv !== 0) {
+          if (bv !== undefined && state.totalExperiments > 1 && bv !== 0) {
             const d = value - bv;
             const p = ((d / bv) * 100).toFixed(1);
             const s = d > 0 ? "+" : "";
@@ -878,8 +831,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           [state.metricName || "metric"]: params.metric,
           ...secondaryMetrics,
         };
-        if (isBaseline) resultData.new_baseline = true;
-
         const trailerJson = JSON.stringify(resultData);
         const commitMsg = `${params.description}\n\nResult: ${trailerJson}`;
 
@@ -905,7 +856,6 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
             ? "error"
             : "warning";
       text += theme.fg(color, args.status);
-      if (args.new_baseline) text += theme.fg("accent", " baseline");
       text += " " + theme.fg("dim", args.description);
       return new Text(text, 0, 0);
     },

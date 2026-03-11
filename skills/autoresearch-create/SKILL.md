@@ -12,7 +12,7 @@ Set up an autonomous experiment loop and start running immediately.
 You have two custom tools from the autoresearch extension. **Always use these instead of raw bash for experiments:**
 
 - **`run_experiment`** — pass it a `command` to run. It times execution, captures output, detects pass/fail via exit code.
-- **`log_experiment`** — records each experiment's `commit`, `metric`, `status` (keep/discard/crash), and `description`. Persists state, updates the status widget and dashboard (toggle with ctrl+r).
+- **`log_experiment`** — records each experiment's `commit`, `metric`, `status` (keep/discard/crash), and `description`. Automatically commits with a `Result: {...}` trailer. Persists state, updates the status widget and dashboard (toggle with ctrl+x).
 
   **On the first call**, always set these to configure the display:
   - `metric_name` — display name for primary metric (e.g. `"total_µs"`, `"bundle_kb"`, `"val_bpb"`)
@@ -21,9 +21,8 @@ You have two custom tools from the autoresearch extension. **Always use these in
 
   **Optional params (any call):**
   - `metrics` — dict of secondary metric name→value for tradeoff monitoring, e.g. `{"parse_µs": 5505, "render_µs": 1440}`
-  - `new_baseline` — **rarely used.** Only set this when `autoresearch.sh` changed so substantially that old metric values are no longer comparable (e.g. you changed the optimization metric entirely, switched benchmarks, or altered the workload). This resets the baseline reference point so all future delta % comparisons are against the new measurement. The first experiment is automatically the baseline — you never need to set this during normal operation.
 
-  The inline widget shows the current metric vs baseline as a delta %, e.g. `★ total_µs: 6,945 (-21.2%)`.
+  The first experiment is always the baseline. The inline widget shows the best metric vs baseline as a delta %, e.g. `★ total_µs: 6,945 (-21.2%)`.
 
 ## Step 1: Gather Context
 
@@ -43,9 +42,9 @@ If the user already provided these in their prompt, skip asking and confirm your
 2. **Read the relevant files** to understand what you're working with.
 3. **Write `autoresearch.md`** and **`autoresearch.sh`** in the working directory. These are committed to the autoresearch branch and allow any agent to resume the work later.
 
-### `autoresearch.md` — The experiment plan
+### `autoresearch.md` — The experiment rules
 
-This describes the full context of what we're doing. Write it so that a fresh agent session can read it and continue the work without any other context.
+This is the **static configuration** for the research session. It defines the rules, scope, and constraints. Write it so that a fresh agent session can read it and know exactly what to do. **Do not update this file during the loop** — only update it when the user asks to change the experiment setup.
 
 ```markdown
 # Autoresearch: <goal>
@@ -77,12 +76,6 @@ outputting metrics in the format the agent expects.
 - All tests must pass
 - No new dependencies
 - ...
-
-## Baseline
-<Filled in after first run: primary + secondary metric values, commit hash.>
-
-## Progress Log
-<Append a one-liner for each significant keep: what changed, new metrics, commit.>
 ```
 
 ### `autoresearch.sh` — The benchmark runner
@@ -106,7 +99,7 @@ The agent uses `run_experiment` with `command: "./autoresearch.sh"` and parses t
 **Important**: the script should be fast and deterministic. If the benchmark has variance, run multiple iterations and report the median or minimum.
 
 4. **Commit both files**: `git add autoresearch.md autoresearch.sh && git commit -m "autoresearch: setup experiment plan and runner"`
-5. **Run the baseline**: use `run_experiment` with `./autoresearch.sh`, parse the METRIC output, then `log_experiment` to record it. The first experiment automatically becomes the baseline. Set `metric_name`, `metric_unit`, and `direction` on this first call. Include secondary `metrics` from the METRIC lines. Update the Baseline section in `autoresearch.md`.
+5. **Run the baseline**: use `run_experiment` with `./autoresearch.sh`, parse the METRIC output, then `log_experiment` to record it. The first experiment automatically becomes the baseline. Set `metric_name`, `metric_unit`, and `direction` on this first call. Include secondary `metrics` from the METRIC lines.
 6. **Start looping** — do NOT wait for confirmation after the baseline. Go.
 
 ## Step 3: Experiment Loop
@@ -120,15 +113,15 @@ LOOP FOREVER:
 2. Edit files with the idea
 3. Use `run_experiment` with `./autoresearch.sh`
 4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` automatically commits with the description as commit message and a `Result: {...}` trailer containing all metrics.
-5. If metric improved AND constraints met → `log_experiment` with status `keep`. Append to the Progress Log in `autoresearch.md`.
+5. If metric improved AND constraints met → `log_experiment` with status `keep`.
 6. If metric worse OR constraints broken → `log_experiment` with status `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert.
-8. Repeat
+7. Repeat
 
 **Simplicity criterion**: all else being equal, simpler is better. Removing code for equal results is a win.
 
-**NEVER STOP.** Loop indefinitely until the user interrupts. Do not ask "should I continue?". The user can check progress anytime with ctrl+e.
+**NEVER STOP.** Loop indefinitely until the user interrupts. Do not ask "should I continue?". The user can check progress anytime with ctrl+x.
 
-**Resuming**: If you find `autoresearch.md` and `autoresearch.sh` already exist in the working directory, read them to understand the experiment context. Check the Progress Log for what's been tried. Then continue the loop from where it left off — no need to re-gather context or re-run the baseline.
+**Resuming**: If you find `autoresearch.md` and `autoresearch.sh` already exist in the working directory, read them to understand the experiment context and continue the loop — no need to re-gather context or re-run the baseline.
 
 **Crashes**: if it's a trivial fix (typo, missing import), fix and retry. If fundamentally broken, discard and move on.
 
