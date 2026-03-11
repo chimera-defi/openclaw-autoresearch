@@ -834,11 +834,22 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         const trailerJson = JSON.stringify(resultData);
         const commitMsg = `${params.description}\n\nResult: ${trailerJson}`;
 
-        await pi.exec("bash", ["-c",
-          `git add -A && git diff --cached --quiet || git commit -m ${JSON.stringify(commitMsg)}`
+        const gitResult = await pi.exec("bash", ["-c",
+          `git add -A && git diff --cached --quiet && echo "NOTHING_TO_COMMIT" || git commit -m ${JSON.stringify(commitMsg)}`
         ], { cwd: ctx.cwd, timeout: 10000 });
-      } catch {
-        // Don't fail the log if git commit fails
+
+        const gitOutput = (gitResult.stdout + gitResult.stderr).trim();
+        if (gitOutput.includes("NOTHING_TO_COMMIT")) {
+          text += `\n📝 Git: nothing to commit (working tree clean)`;
+        } else if (gitResult.code === 0) {
+          // Extract short summary from git commit output
+          const firstLine = gitOutput.split("\n")[0] || "";
+          text += `\n📝 Git: committed — ${firstLine}`;
+        } else {
+          text += `\n⚠️ Git commit failed (exit ${gitResult.code}): ${gitOutput.slice(0, 200)}`;
+        }
+      } catch (e) {
+        text += `\n⚠️ Git commit error: ${e instanceof Error ? e.message : String(e)}`;
       }
 
       return {
