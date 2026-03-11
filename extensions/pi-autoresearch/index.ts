@@ -180,6 +180,14 @@ function findBaselineMetric(results: ExperimentResult[]): number | null {
   return null;
 }
 
+/** Find the 1-based run number of the most recent baseline row */
+function findBaselineRunNum(results: ExperimentResult[]): number {
+  for (let i = results.length - 1; i >= 0; i--) {
+    if (results[i].newBaseline) return i + 1;
+  }
+  return 0;
+}
+
 /**
  * Find secondary metric baselines from the most recent new-baseline row.
  * For metrics that didn't exist at baseline time, falls back to the first
@@ -269,15 +277,36 @@ function renderDashboardLines(
     )
   );
 
-  // Baseline: just primary metric
+  // Baseline: primary metric + run number
+  const baselineRunNum = findBaselineRunNum(st.results);
   lines.push(
     truncateToWidth(
-      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}`,
+      `  ${th.fg("muted", "Baseline:")} ${th.fg("dim", `${st.metricName}: ${formatNum(baseline, st.metricUnit)}`)}` +
+        (baselineRunNum > 0 ? th.fg("dim", ` #${baselineRunNum}`) : ""),
       width
     )
   );
 
-  // Progress: best primary metric with delta, then secondary deltas
+  // Baseline secondary metrics on next line
+  if (st.secondaryMetrics.length > 0) {
+    const secParts: string[] = [];
+    for (const sm of st.secondaryMetrics) {
+      const val = baselineSec[sm.name];
+      if (val !== undefined) {
+        secParts.push(`${sm.name}: ${formatNum(val, sm.unit)}`);
+      }
+    }
+    if (secParts.length > 0) {
+      lines.push(
+        truncateToWidth(
+          `  ${th.fg("dim", "          " + secParts.join("  "))}`,
+          width
+        )
+      );
+    }
+  }
+
+  // Progress: best primary metric with delta + run number
   if (bestPrimary !== null) {
     let progressLine = `  ${th.fg("muted", "Progress:")} ${th.fg("warning", th.bold(`★ ${st.metricName}: ${formatNum(bestPrimary, st.metricUnit)}`))}${th.fg("dim", ` #${bestRunNum}`)}`;
 
@@ -288,7 +317,9 @@ function renderDashboardLines(
       progressLine += th.fg(color, ` (${sign}${pct.toFixed(1)}%)`);
     }
 
-    // Secondary metric deltas
+    lines.push(truncateToWidth(progressLine, width));
+
+    // Progress secondary metrics on next line with deltas
     if (st.secondaryMetrics.length > 0) {
       const secParts: string[] = [];
       for (const sm of st.secondaryMetrics) {
@@ -306,11 +337,14 @@ function renderDashboardLines(
         }
       }
       if (secParts.length > 0) {
-        progressLine += th.fg("dim", "  ") + th.fg("muted", secParts.join("  "));
+        lines.push(
+          truncateToWidth(
+            `  ${th.fg("dim", "          ")}${th.fg("muted", secParts.join("  "))}`,
+            width
+          )
+        );
       }
     }
-
-    lines.push(truncateToWidth(progressLine, width));
   }
 
   if (st.runTag) {
