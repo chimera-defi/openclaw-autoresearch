@@ -490,12 +490,15 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           try {
             const entry = JSON.parse(line);
 
-            // Config header line
+            // Config header line — each header starts a new segment
             if (entry.type === "config") {
               if (entry.name) state.name = entry.name;
               if (entry.metricName) state.metricName = entry.metricName;
               if (entry.metricUnit !== undefined) state.metricUnit = entry.metricUnit;
               if (entry.bestDirection) state.bestDirection = entry.bestDirection;
+              // Reset results: baseline = first result after this header
+              state.results = [];
+              state.secondaryMetrics = [];
               continue;
             }
 
@@ -713,20 +716,12 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Call init_experiment exactly once at the start of an autoresearch session, before the first run_experiment.",
       "If autoresearch.jsonl already exists with a config, do NOT call init_experiment again.",
+      "If the optimization target changes (different benchmark, metric, or workload), call init_experiment again to insert a new config header and reset the baseline.",
     ],
     parameters: InitParams,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      // Don't re-init if already configured from jsonl
-      if (state.results.length > 0) {
-        return {
-          content: [{
-            type: "text",
-            text: `⚠️ Experiment already initialized with ${state.results.length} results. Config: name="${state.name}", metric="${state.metricName}" (${state.metricUnit || "unitless"}, ${state.bestDirection} is better). To start fresh, delete autoresearch.jsonl.`,
-          }],
-          details: {},
-        };
-      }
+      const isReinit = state.results.length > 0;
 
       state.name = params.name;
       state.metricName = params.metric_name;
@@ -735,7 +730,12 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         state.bestDirection = params.direction;
       }
 
-      // Write config header to jsonl
+      // Reset results for new baseline segment
+      state.results = [];
+      state.bestMetric = null;
+      state.secondaryMetrics = [];
+
+      // Write config header to jsonl (append for re-init, create for first)
       try {
         const jsonlPath = path.join(ctx.cwd, "autoresearch.jsonl");
         const config = JSON.stringify({
@@ -745,7 +745,11 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           metricUnit: state.metricUnit,
           bestDirection: state.bestDirection,
         });
-        fs.writeFileSync(jsonlPath, config + "\n");
+        if (isReinit) {
+          fs.appendFileSync(jsonlPath, config + "\n");
+        } else {
+          fs.writeFileSync(jsonlPath, config + "\n");
+        }
       } catch (e) {
         return {
           content: [{
@@ -759,10 +763,11 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       autoresearchMode = true;
       updateWidget(ctx);
 
+      const reinitNote = isReinit ? " (re-initialized — previous results archived, new baseline needed)" : "";
       return {
         content: [{
           type: "text",
-          text: `✅ Experiment initialized: "${state.name}"\nMetric: ${state.metricName} (${state.metricUnit || "unitless"}, ${state.bestDirection} is better)\nConfig written to autoresearch.jsonl. Now run the baseline with run_experiment.`,
+          text: `✅ Experiment initialized: "${state.name}"${reinitNote}\nMetric: ${state.metricName} (${state.metricUnit || "unitless"}, ${state.bestDirection} is better)\nConfig written to autoresearch.jsonl. Now run the baseline with run_experiment.`,
         }],
         details: { state: { ...state } },
       };
