@@ -771,7 +771,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "Always call log_experiment after run_experiment to record the result.",
       "After run_experiment, always call log_experiment to record the result.",
       "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
-      "Use status 'keep' ONLY if the PRIMARY metric improved. 'discard' if the primary metric is worse or unchanged. 'crash' if it failed. Secondary metrics are informational only — they do NOT affect keep/discard.",
+      "Use status 'keep' if the PRIMARY metric improved. 'discard' if worse or unchanged. 'crash' if it failed. Secondary metrics are for monitoring — they almost never affect keep/discard. Only discard a primary improvement if a secondary metric degraded catastrophically, and explain why in the description.",
 
     ],
     parameters: LogParams,

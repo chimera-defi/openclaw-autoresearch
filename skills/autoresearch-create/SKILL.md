@@ -113,13 +113,13 @@ LOOP FOREVER:
 2. Edit files with the idea
 3. Use `run_experiment` with `./autoresearch.sh`
 4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` automatically commits with the description as commit message and a `Result: {...}` trailer containing all metrics.
-5. **Keep/discard decision is based ONLY on the primary metric.** Secondary metrics are for observation only — they do NOT affect the keep/discard decision. If the primary metric improved AND constraints are met → `log_experiment` with status `keep`. Even if a secondary metric got worse, **keep it** if the primary improved.
-6. If the **primary metric** is worse or equal OR constraints broken → `log_experiment` with status `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert. Do not keep experiments that don't improve the primary metric, even if secondary metrics improved.
+5. **Keep/discard decision is based primarily on the primary metric.** If the primary metric improved AND constraints are met → `log_experiment` with status `keep`. If a secondary metric got worse but primary improved, **keep it**.
+6. If the **primary metric** is worse or equal OR constraints broken → `log_experiment` with status `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert. In extreme cases you may discard an experiment that improved the primary metric slightly but catastrophically degraded a secondary metric — if you do this, **explain your reasoning in the description**.
 7. Repeat
 
 **Simplicity criterion**: all else being equal, simpler is better. Removing code for equal results is a win.
 
-**⚠️ CRITICAL: Optimize ruthlessly for the primary metric.** Secondary metrics exist only to monitor tradeoffs — they are informational. The ONLY thing that determines keep vs discard is whether the primary optimization metric improved. Do not let secondary metric changes influence your keep/discard decision.
+**⚠️ Optimize ruthlessly for the primary metric.** Secondary metrics are for monitoring tradeoffs — the primary metric drives almost all keep/discard decisions. Only override this in extreme situations (e.g. primary improved 0.1% but a secondary metric 10x'd). When overriding, document why in the experiment description.
 
 **NEVER STOP.** Loop indefinitely until the user interrupts. Do not ask "should I continue?". The user can check progress anytime with ctrl+x.
 
