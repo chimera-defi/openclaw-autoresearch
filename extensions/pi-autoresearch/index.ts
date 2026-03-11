@@ -121,6 +121,12 @@ const LogParams = Type.Object({
         'Whether "lower" or "higher" is better for the primary metric. Defaults to "lower". Set on the first log_experiment call.',
     })
   ),
+  force: Type.Optional(
+    Type.Boolean({
+      description:
+        "Set to true to allow adding a new secondary metric that wasn't tracked before. Only use for metrics that have proven very valuable to watch.",
+    })
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -761,6 +767,36 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         state.bestDirection = params.direction;
       }
 
+      // Validate secondary metrics consistency (after first experiment establishes them)
+      if (state.secondaryMetrics.length > 0) {
+        const knownNames = new Set(state.secondaryMetrics.map((m) => m.name));
+        const providedNames = new Set(Object.keys(secondaryMetrics));
+
+        // Check for missing metrics
+        const missing = [...knownNames].filter((n) => !providedNames.has(n));
+        if (missing.length > 0) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ Missing secondary metrics: ${missing.join(", ")}\n\nYou must provide all previously tracked metrics. Expected: ${[...knownNames].join(", ")}\nGot: ${[...providedNames].join(", ") || "(none)"}\n\nFix: include ${missing.map((m) => `"${m}": <value>`).join(", ")} in the metrics parameter.`,
+            }],
+            details: {},
+          };
+        }
+
+        // Check for new metrics not yet tracked
+        const newMetrics = [...providedNames].filter((n) => !knownNames.has(n));
+        if (newMetrics.length > 0 && !params.force) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ New secondary metric${newMetrics.length > 1 ? "s" : ""} not previously tracked: ${newMetrics.join(", ")}\n\nExisting metrics: ${[...knownNames].join(", ")}\n\nIf this metric has proven very valuable to watch, call log_experiment again with force: true to add it. Otherwise, remove it from the metrics parameter.`,
+            }],
+            details: {},
+          };
+        }
+      }
+
       const experiment: ExperimentResult = {
         commit: params.commit.slice(0, 7),
         metric: params.metric,
@@ -773,7 +809,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       state.results.push(experiment);
       state.totalExperiments++;
 
-      // Register any new secondary metric names we haven't seen before
+      // Register any new secondary metric names
       for (const name of Object.keys(secondaryMetrics)) {
         if (!state.secondaryMetrics.find((m) => m.name === name)) {
           let unit = "";
