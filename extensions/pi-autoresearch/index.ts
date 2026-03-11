@@ -1164,15 +1164,15 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         ctx.ui.notify("Autoresearch mode ON — rules loaded from autoresearch.md", "success");
         if (args) {
           // User gave specific instructions, pass them along
-          ctx.sendUserMessage(`Autoresearch mode active. ${args}`);
+          pi.sendUserMessage(`Autoresearch mode active. ${args}`);
         } else {
-          ctx.sendUserMessage(
+          pi.sendUserMessage(
             "Autoresearch mode active. Read autoresearch.md and autoresearch.sh, then resume the experiment loop."
           );
         }
       } else {
         ctx.ui.notify("Autoresearch mode ON — no autoresearch.md found, setting up", "info");
-        ctx.sendUserMessage(
+        pi.sendUserMessage(
           args
             ? `Start autoresearch: ${args}`
             : "Start autoresearch. No autoresearch.md found — gather context and set up the experiment (create autoresearch.md and autoresearch.sh)."
