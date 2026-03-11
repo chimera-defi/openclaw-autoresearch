@@ -111,6 +111,24 @@ const LogParams = Type.Object({
         "Mark this experiment as the new baseline reference point (default: false). The most recent baseline is used as the 'best' metric for comparison.",
     })
   ),
+  metric_name: Type.Optional(
+    Type.String({
+      description:
+        'Display name for the primary metric (e.g. "total_µs", "bundle_kb", "val_bpb"). Set on the first log_experiment call. Shown in dashboard headers.',
+    })
+  ),
+  metric_unit: Type.Optional(
+    Type.String({
+      description:
+        'Unit for the primary metric. Use "µs", "ms", "s", "kb", "mb", or "" for unitless. Affects number formatting (e.g. "s" shows one decimal, "µs"/"ms" show comma-separated integers). Set on the first log_experiment call.',
+    })
+  ),
+  direction: Type.Optional(
+    Type.String({
+      description:
+        'Whether "lower" or "higher" is better for the primary metric. Defaults to "lower". Set on the first log_experiment call.',
+    })
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -137,21 +155,13 @@ function fmtNum(n: number, decimals: number = 0): string {
   return commas(n);
 }
 
-function formatMetric(value: number | null, unit: string): string {
+function formatNum(value: number | null, unit: string): string {
   if (value === null) return "—";
-  if (unit === "s") return `${fmtNum(value, 1)}s`;
-  if (unit === "µs") return `${fmtNum(value)}µs`;
-  if (unit === "ms") return `${fmtNum(value)}ms`;
-  if (Math.abs(value) >= 1000 && value === Math.round(value)) return fmtNum(value);
-  return value.toFixed(6);
-}
-
-function formatCompact(value: number | null, unit: string): string {
-  if (value === null) return "—";
-  if (unit === "s") return `${fmtNum(value, 1)}s`;
-  if (unit === "µs" || unit === "ms") return `${fmtNum(value)}${unit}`;
-  if (Math.abs(value) >= 1000 && value === Math.round(value)) return fmtNum(value);
-  return value.toFixed(4);
+  const u = unit || "";
+  // Integers: no decimals
+  if (value === Math.round(value)) return fmtNum(value) + u;
+  // Fractional: 2 decimal places
+  return fmtNum(value, 2) + u;
 }
 
 function isBetter(
@@ -229,7 +239,7 @@ function renderDashboardLines(
   const kept = st.results.filter((r) => r.status === "keep").length;
   const discarded = st.results.filter((r) => r.status === "discard").length;
   const crashed = st.results.filter((r) => r.status === "crash").length;
-  const best = formatMetric(st.bestMetric, st.metricUnit);
+  const best = formatNum(st.bestMetric, st.metricUnit);
 
   lines.push(
     truncateToWidth(
@@ -256,7 +266,7 @@ function renderDashboardLines(
     for (const sm of st.secondaryMetrics) {
       const val = baselines[sm.name];
       if (val !== undefined) {
-        secondaryParts.push(`${sm.name}: ${formatCompact(val, sm.unit)}`);
+        secondaryParts.push(`${sm.name}: ${formatNum(val, sm.unit)}`);
       }
     }
     if (secondaryParts.length > 0) {
@@ -282,12 +292,12 @@ function renderDashboardLines(
 
   // Column definitions
   const secMetrics = st.secondaryMetrics;
-  const col = { idx: 4, commit: 9, primary: 14, status: 9 };
-  const secColWidth = 14;
+  const col = { idx: 3, commit: 8, primary: 11, status: 8 };
+  const secColWidth = 11;
   const totalSecWidth = secMetrics.length * secColWidth;
   const descW = Math.max(
     10,
-    width - col.idx - col.commit - col.primary - totalSecWidth - col.status - 10
+    width - col.idx - col.commit - col.primary - totalSecWidth - col.status - 6
   );
 
   // Table header — primary metric name bolded with ★
@@ -334,7 +344,7 @@ function renderDashboardLines(
     const isBaseline = r.newBaseline;
 
     // Primary metric with color coding
-    const primaryStr = formatCompact(r.metric, st.metricUnit);
+    const primaryStr = formatNum(r.metric, st.metricUnit);
     let primaryColor: string = "text";
     if (isBaseline) {
       primaryColor = "warning";
@@ -362,7 +372,7 @@ function renderDashboardLines(
     for (const sm of secMetrics) {
       const val = rowMetrics[sm.name];
       if (val !== undefined) {
-        const secStr = formatCompact(val, sm.unit);
+        const secStr = formatNum(val, sm.unit);
         let secColor: string = "dim";
         const bv = baselineSecondary[sm.name];
         if (isBaseline) {
@@ -399,7 +409,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     bestMetric: null,
     bestDirection: "lower",
     metricName: "metric",
-    metricUnit: "s",
+    metricUnit: "",
     secondaryMetrics: [],
     runTag: null,
     totalExperiments: 0,
@@ -415,7 +425,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       bestMetric: null,
       bestDirection: "lower",
       metricName: "metric",
-      metricUnit: "s",
+      metricUnit: "",
       secondaryMetrics: [],
       runTag: null,
       totalExperiments: 0,
@@ -479,7 +489,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       // Collapsed: compact one-liner
       const kept = state.results.filter((r) => r.status === "keep").length;
       const crashed = state.results.filter((r) => r.status === "crash").length;
-      const best = formatMetric(state.bestMetric, state.metricUnit);
+      const best = formatNum(state.bestMetric, state.metricUnit);
 
       ctx.ui.setWidget("autoresearch", (_tui, theme) => {
         const parts = [
@@ -504,7 +514,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
                 theme.fg("dim", "  "),
                 theme.fg(
                   "muted",
-                  `${sm.name}: ${formatCompact(val, sm.unit)}`
+                  `${sm.name}: ${formatNum(val, sm.unit)}`
                 )
               );
             }
@@ -587,9 +597,9 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       if (state.bestMetric !== null && passed) {
         const delta = durationSeconds - state.bestMetric;
         if (isBetter(durationSeconds, state.bestMetric, state.bestDirection)) {
-          text += `🎉 NEW BEST! Improved by ${Math.abs(delta).toFixed(1)}s over baseline (${formatMetric(state.bestMetric, state.metricUnit)})\n`;
+          text += `🎉 NEW BEST! Improved by ${Math.abs(delta).toFixed(1)}s over baseline (${formatNum(state.bestMetric, state.metricUnit)})\n`;
         } else {
-          text += `❌ Slower by ${delta.toFixed(1)}s vs baseline (${formatMetric(state.bestMetric, state.metricUnit)}). Consider reverting.\n`;
+          text += `❌ Slower by ${delta.toFixed(1)}s vs baseline (${formatNum(state.bestMetric, state.metricUnit)}). Consider reverting.\n`;
         }
       }
 
@@ -683,6 +693,13 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       const secondaryMetrics = params.metrics ?? {};
       const isBaseline = params.new_baseline ?? false;
 
+      // Apply metric config (typically set on first call, sticky after that)
+      if (params.metric_name) state.metricName = params.metric_name;
+      if (params.metric_unit !== undefined) state.metricUnit = params.metric_unit;
+      if (params.direction === "lower" || params.direction === "higher") {
+        state.bestDirection = params.direction;
+      }
+
       const experiment: ExperimentResult = {
         commit: params.commit.slice(0, 7),
         metric: params.metric,
@@ -730,12 +747,12 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       text += ` — ${experiment.description}`;
 
       if (state.bestMetric !== null) {
-        text += `\nBaseline ${state.metricName}: ${formatMetric(state.bestMetric, state.metricUnit)}`;
+        text += `\nBaseline ${state.metricName}: ${formatNum(state.bestMetric, state.metricUnit)}`;
         if (!isBaseline && params.status === "keep" && params.metric > 0) {
           const delta = params.metric - state.bestMetric;
           const pct = ((delta / state.bestMetric) * 100).toFixed(1);
           const sign = delta > 0 ? "+" : "";
-          text += ` | this: ${formatMetric(params.metric, state.metricUnit)} (${sign}${pct}%)`;
+          text += ` | this: ${formatNum(params.metric, state.metricUnit)} (${sign}${pct}%)`;
         }
       }
 
@@ -746,7 +763,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         for (const [name, value] of Object.entries(secondaryMetrics)) {
           const def = state.secondaryMetrics.find((m) => m.name === name);
           const unit = def?.unit ?? "";
-          let part = `${name}: ${formatCompact(value, unit)}`;
+          let part = `${name}: ${formatNum(value, unit)}`;
           const bv = baselines[name];
           if (bv !== undefined && !isBaseline && bv !== 0) {
             const d = value - bv;
@@ -809,7 +826,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       if (s.bestMetric !== null) {
         text +=
           theme.fg("dim", " │ ") +
-          theme.fg("warning", theme.bold(`★ ${formatMetric(s.bestMetric, s.metricUnit)}`));
+          theme.fg("warning", theme.bold(`★ ${formatNum(s.bestMetric, s.metricUnit)}`));
       }
 
       // Show secondary metrics inline
@@ -817,7 +834,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         const parts: string[] = [];
         for (const [name, value] of Object.entries(exp.metrics)) {
           const def = s.secondaryMetrics.find((m) => m.name === name);
-          parts.push(`${name}=${formatCompact(value, def?.unit ?? "")}`);
+          parts.push(`${name}=${formatNum(value, def?.unit ?? "")}`);
         }
         text += theme.fg("dim", `  ${parts.join(" ")}`);
       }

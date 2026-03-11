@@ -12,7 +12,16 @@ Set up an autonomous experiment loop and start running immediately.
 You have two custom tools from the autoresearch extension. **Always use these instead of raw bash for experiments:**
 
 - **`run_experiment`** — pass it a `command` to run. It times execution, captures output, detects pass/fail via exit code.
-- **`log_experiment`** — records each experiment's `commit`, `metric`, `status` (keep/discard/crash), and `description`. Supports optional `metrics` (dict of secondary metric name→value) for tradeoff monitoring and `new_baseline` (boolean, default false) to mark the row as the reference baseline. Persists state, updates the status widget and `/autoresearch` dashboard.
+- **`log_experiment`** — records each experiment's `commit`, `metric`, `status` (keep/discard/crash), and `description`. Persists state, updates the status widget and dashboard (toggle with ctrl+r).
+
+  **On the first call**, always set these to configure the display:
+  - `metric_name` — display name for primary metric (e.g. `"total_µs"`, `"bundle_kb"`, `"val_bpb"`)
+  - `metric_unit` — unit string that controls formatting: `"µs"`, `"ms"`, `"s"`, `"kb"`, or `""` for unitless
+  - `direction` — `"lower"` (default) or `"higher"` depending on what's better
+
+  **Optional params (any call):**
+  - `metrics` — dict of secondary metric name→value for tradeoff monitoring, e.g. `{"parse_µs": 5505, "render_µs": 1440}`
+  - `new_baseline` — boolean (default false), marks this row as the reference baseline
 
 ## Step 1: Gather Context
 
