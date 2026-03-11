@@ -170,14 +170,40 @@ function findBaselineMetric(results: ExperimentResult[]): number | null {
   return null;
 }
 
-/** Find secondary metric baselines from the most recent new-baseline row */
+/**
+ * Find secondary metric baselines from the most recent new-baseline row.
+ * For metrics that didn't exist at baseline time, falls back to the first
+ * occurrence of that metric across all results.
+ */
 function findBaselineSecondary(
-  results: ExperimentResult[]
+  results: ExperimentResult[],
+  knownMetrics?: MetricDef[]
 ): Record<string, number> {
+  // Start with the most recent baseline's metrics
+  let base: Record<string, number> = {};
   for (let i = results.length - 1; i >= 0; i--) {
-    if (results[i].newBaseline) return { ...results[i].metrics };
+    if (results[i].newBaseline) {
+      base = { ...(results[i].metrics ?? {}) };
+      break;
+    }
   }
-  return {};
+
+  // Fill in any known metrics missing from baseline with their first occurrence
+  if (knownMetrics) {
+    for (const sm of knownMetrics) {
+      if (base[sm.name] === undefined) {
+        for (const r of results) {
+          const val = (r.metrics ?? {})[sm.name];
+          if (val !== undefined) {
+            base[sm.name] = val;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return base;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +286,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       // Show secondary metric baselines in widget
       if (state.secondaryMetrics.length > 0) {
-        const baselines = findBaselineSecondary(state.results);
+        const baselines = findBaselineSecondary(state.results, state.secondaryMetrics);
         for (const sm of state.secondaryMetrics) {
           const val = baselines[sm.name];
           if (val !== undefined) {
@@ -500,7 +526,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       // Show secondary metrics
       if (Object.keys(secondaryMetrics).length > 0) {
-        const baselines = findBaselineSecondary(state.results);
+        const baselines = findBaselineSecondary(state.results, state.secondaryMetrics);
         const parts: string[] = [];
         for (const [name, value] of Object.entries(secondaryMetrics)) {
           const def = state.secondaryMetrics.find((m) => m.name === name);
@@ -687,7 +713,7 @@ class DashboardComponent {
 
       // Show secondary metric baselines
       if (this.state.secondaryMetrics.length > 0) {
-        const baselines = findBaselineSecondary(this.state.results);
+        const baselines = findBaselineSecondary(this.state.results, this.state.secondaryMetrics);
         const secondaryParts: string[] = [];
         for (const sm of this.state.secondaryMetrics) {
           const val = baselines[sm.name];
@@ -764,7 +790,7 @@ class DashboardComponent {
 
       // Baseline values for delta display
       const baselinePrimary = findBaselineMetric(this.state.results);
-      const baselineSecondary = findBaselineSecondary(this.state.results);
+      const baselineSecondary = findBaselineSecondary(this.state.results, this.state.secondaryMetrics);
 
       for (let i = 0; i < this.state.results.length; i++) {
         const r = this.state.results[i];
@@ -801,9 +827,10 @@ class DashboardComponent {
           `${th.fg("accent", r.commit.padEnd(col.commit))}` +
           `${th.fg(primaryColor, th.bold(primaryStr.padEnd(col.primary)))}`;
 
-        // Secondary metrics
+        // Secondary metrics (r.metrics may be absent on old reconstructed rows)
+        const rowMetrics = r.metrics ?? {};
         for (const sm of secMetrics) {
-          const val = r.metrics[sm.name];
+          const val = rowMetrics[sm.name];
           if (val !== undefined) {
             let secStr = formatCompact(val, sm.unit);
             let secColor: string = "dim";
