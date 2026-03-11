@@ -21,7 +21,7 @@ You have two custom tools from the autoresearch extension. **Always use these in
 
   **Optional params (any call):**
   - `metrics` — dict of secondary metric name→value for tradeoff monitoring, e.g. `{"parse_µs": 5505, "render_µs": 1440}`
-  - `new_baseline` — only use this to **reset** the comparison reference point (e.g. after changing the optimization target or accepting a tradeoff). The first experiment is automatically the baseline. Do NOT set this on every keep.
+  - `new_baseline` — **rarely used.** Only set this when `autoresearch.sh` changed so substantially that old metric values are no longer comparable (e.g. you changed the optimization metric entirely, switched benchmarks, or altered the workload). This resets the baseline reference point so all future delta % comparisons are against the new measurement. The first experiment is automatically the baseline — you never need to set this during normal operation.
 
   The inline widget shows the current metric vs baseline as a delta %, e.g. `★ total_µs: 6,945 (-21.2%)`.
 
