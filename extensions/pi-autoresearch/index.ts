@@ -671,32 +671,19 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
-  // When in autoresearch mode, append autoresearch.md to system prompt.
-  // autoresearch.md is static (only changes when user asks), so this is
-  // cache-safe — the system prompt stays identical between turns as long
-  // as the file doesn't change.
+  // When in autoresearch mode, add a static note to the system prompt.
+  // Only a short pointer — no file content, fully cache-safe.
   pi.on("before_agent_start", async (event, ctx) => {
     if (!autoresearchMode) return;
 
-    const parts: string[] = [
-      "\n\n## Autoresearch Mode (ACTIVE)",
-      "You are in autoresearch mode. Optimize the primary metric through an autonomous experiment loop.",
-      "Use run_experiment and log_experiment tools. NEVER STOP until interrupted.",
-    ];
-
-    // Include autoresearch.md content (static rules — cache-safe)
     const mdPath = path.join(ctx.cwd, "autoresearch.md");
-    try {
-      if (fs.existsSync(mdPath)) {
-        const content = fs.readFileSync(mdPath, "utf-8");
-        parts.push("", content);
-      }
-    } catch {
-      // ignore
-    }
 
     return {
-      systemPrompt: event.systemPrompt + parts.join("\n"),
+      systemPrompt: event.systemPrompt +
+        "\n\n## Autoresearch Mode (ACTIVE)" +
+        "\nYou are in autoresearch mode. Optimize the primary metric through an autonomous experiment loop." +
+        "\nUse init_experiment, run_experiment, and log_experiment tools. NEVER STOP until interrupted." +
+        `\nExperiment rules: ${mdPath} — read this file at the start of every session and after compaction.`,
     };
   });
 
