@@ -1128,7 +1128,11 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     description: "Toggle autoresearch dashboard",
     handler: async (ctx) => {
       if (state.results.length === 0) {
-        ctx.ui.notify("No experiments yet", "info");
+        if (!autoresearchMode && !fs.existsSync(path.join(ctx.cwd, "autoresearch.md"))) {
+          ctx.ui.notify("No experiments yet — run /autoresearch to get started", "info");
+        } else {
+          ctx.ui.notify("No experiments yet", "info");
+        }
         return;
       }
       dashboardExpanded = !dashboardExpanded;
