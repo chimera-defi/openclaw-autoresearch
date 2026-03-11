@@ -320,8 +320,17 @@ function renderDashboardLines(
 
   lines.push("");
 
+  // Determine visible rows for column pruning
+  const maxRows = 6;
+  const startIdx = Math.max(0, st.results.length - maxRows);
+  const visibleRows = st.results.slice(startIdx);
+
+  // Only show secondary metric columns that have at least one value in visible rows
+  const secMetrics = st.secondaryMetrics.filter((sm) =>
+    visibleRows.some((r) => (r.metrics ?? {})[sm.name] !== undefined)
+  );
+
   // Column definitions
-  const secMetrics = st.secondaryMetrics;
   const col = { idx: 3, commit: 8, primary: 11, status: 8 };
   const secColWidth = 11;
   const totalSecWidth = secMetrics.length * secColWidth;
@@ -363,8 +372,6 @@ function renderDashboardLines(
   );
 
   // Show max 6 recent runs, with a note about hidden earlier ones
-  const maxRows = 6;
-  const startIdx = Math.max(0, st.results.length - maxRows);
   if (startIdx > 0) {
     lines.push(
       truncateToWidth(
