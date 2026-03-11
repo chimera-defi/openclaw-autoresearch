@@ -75,6 +75,13 @@ The agent asks about your goal, command, metric, and files in scope — or infer
 
 The agent runs autonomously: edit → commit → `run_experiment` → `log_experiment` → keep or revert → repeat. It never stops unless interrupted.
 
+Every result is appended to `autoresearch.jsonl` in your project — one line per run. This means:
+
+- **Survives restarts** — the agent can resume a session by reading the file
+- **Survives context resets** — `autoresearch.md` captures what's been tried so a fresh agent has full context
+- **Human readable** — open it anytime to see the full history
+- **Branch-aware** — each branch has its own session
+
 ### 3. Monitor progress
 
 - **Widget** — always visible above the editor
@@ -110,7 +117,14 @@ The **extension** is domain-agnostic infrastructure. The **skill** encodes domai
 └──────────────────────┘     └──────────────────────────┘
 ```
 
-Results are persisted to `autoresearch.jsonl` — survives restarts, supports branching, readable by humans.
+Two files keep the session alive across restarts and context resets:
+
+```
+autoresearch.jsonl   — append-only log of every run (metric, status, commit, description)
+autoresearch.md      — living document: objective, what's been tried, dead ends, key wins
+```
+
+A fresh agent with no memory can read these two files and continue exactly where the previous session left off.
 
 ---
 
