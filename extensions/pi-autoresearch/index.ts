@@ -8,10 +8,8 @@
  * - `run_experiment` tool — runs any command, times it, captures output, detects pass/fail
  * - `log_experiment` tool — records results with session-persisted state
  * - Status widget showing experiment count + best metric
- * - Ctrl+R toggle to expand/collapse full dashboard inline above the editor
- *
- * Supports multiple metrics (primary + secondaries) and "new baseline" marking
- * for tracking the reference point against which improvements are measured.
+ * - Ctrl+X toggle to expand/collapse full dashboard inline above the editor
+ * - Injects autoresearch.md into context on every turn via before_agent_start
  */
 
 import type {
@@ -23,6 +21,8 @@ import { truncateTail } from "@mariozechner/pi-coding-agent";
 import { StringEnum } from "@mariozechner/pi-ai";
 import { Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -604,6 +604,25 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
+  // Inject autoresearch.md into context on every turn
+  pi.on("before_agent_start", async (_event, ctx) => {
+    const mdPath = path.join(ctx.cwd, "autoresearch.md");
+    try {
+      if (fs.existsSync(mdPath)) {
+        const content = fs.readFileSync(mdPath, "utf-8");
+        return {
+          message: {
+            customType: "autoresearch-context",
+            content: `<autoresearch-rules>\n${content}\n</autoresearch-rules>`,
+            display: false,
+          },
+        };
+      }
+    } catch {
+      // Silently ignore read errors
+    }
+  });
+
   // -----------------------------------------------------------------------
   // run_experiment tool
   // -----------------------------------------------------------------------
@@ -752,7 +771,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "Always call log_experiment after run_experiment to record the result.",
       "After run_experiment, always call log_experiment to record the result.",
       "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
-      "Use status 'keep' if the metric improved, 'discard' if worse, 'crash' if it failed.",
+      "Use status 'keep' ONLY if the PRIMARY metric improved. 'discard' if the primary metric is worse or unchanged. 'crash' if it failed. Secondary metrics are informational only — they do NOT affect keep/discard.",
 
     ],
     parameters: LogParams,
