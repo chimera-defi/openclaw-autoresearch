@@ -15,6 +15,7 @@ You have two custom tools from the autoresearch extension. **Always use these in
 - **`log_experiment`** — records each experiment's `commit`, `metric`, `status` (keep/discard/crash), and `description`. Automatically commits with a `Result: {...}` trailer. Persists state, updates the status widget and dashboard (toggle with ctrl+x).
 
   **On the first call**, always set these to configure the display:
+  - `experiment_name` — human-readable session name (e.g. `"Optimizing liquid for fastest execution and parsing"`)
   - `metric_name` — display name for primary metric (e.g. `"total_µs"`, `"bundle_kb"`, `"val_bpb"`)
   - `metric_unit` — unit string that controls number formatting: `"µs"`, `"ms"`, `"s"`, `"kb"`, or `""` for unitless. Integers get comma-separated thousands; fractional values get 2 decimal places.
   - `direction` — `"lower"` (default) or `"higher"` depending on what's better

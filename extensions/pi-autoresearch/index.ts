@@ -52,7 +52,7 @@ interface ExperimentState {
   metricUnit: string;
   /** Definitions for secondary metrics (order preserved) */
   secondaryMetrics: MetricDef[];
-  runTag: string | null;
+  name: string | null;
 }
 
 interface RunDetails {
@@ -100,6 +100,12 @@ const LogParams = Type.Object({
     Type.Record(Type.String(), Type.Number(), {
       description:
         'Additional metrics to track as { name: value } pairs, e.g. { "compile_µs": 4200, "render_µs": 9800 }. These are shown alongside the primary metric for tradeoff monitoring.',
+    })
+  ),
+  experiment_name: Type.Optional(
+    Type.String({
+      description:
+        'Human-readable name for this experiment session (e.g. "Optimizing liquid for fastest execution"). Set on the first log_experiment call.',
     })
   ),
   metric_name: Type.Optional(
@@ -308,10 +314,10 @@ function renderDashboardLines(
     }
   }
 
-  if (st.runTag) {
+  if (st.name) {
     lines.push(
       truncateToWidth(
-        `  ${th.fg("muted", "Tag:")} ${th.fg("dim", st.runTag)}`,
+        `  ${th.fg("accent", st.name)}`,
         width
       )
     );
@@ -458,7 +464,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     metricName: "metric",
     metricUnit: "",
     secondaryMetrics: [],
-    runTag: null,
+    name: null,
   };
 
   // -----------------------------------------------------------------------
@@ -473,7 +479,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       metricName: "metric",
       metricUnit: "",
       secondaryMetrics: [],
-      runTag: null,
+      name: null,
     };
 
     // Primary: read from autoresearch.jsonl (alongside autoresearch.md/sh)
@@ -488,6 +494,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
             // Config header line
             if (entry.type === "config") {
+              if (entry.name) state.name = entry.name;
               if (entry.metricName) state.metricName = entry.metricName;
               if (entry.metricUnit !== undefined) state.metricUnit = entry.metricUnit;
               if (entry.bestDirection) state.bestDirection = entry.bestDirection;
@@ -649,8 +656,8 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
           }
         }
 
-        if (state.runTag) {
-          parts.push(theme.fg("dim", ` │ ${state.runTag}`));
+        if (state.name) {
+          parts.push(theme.fg("dim", ` │ ${state.name}`));
         }
 
         parts.push(theme.fg("dim", "  (ctrl+x to expand)"));
@@ -705,7 +712,10 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         }
       }
 
-      sysLines.push("", `## Experiment State (${state.results.length} runs)`);
+      const stateTitle = state.name
+        ? `## ${state.name} (${state.results.length} runs)`
+        : `## Experiment State (${state.results.length} runs)`;
+      sysLines.push("", stateTitle);
       sysLines.push(`Baseline: ${state.metricName} = ${formatNum(baseline, state.metricUnit)} (#1)`);
       if (bestPrimary !== null && baseline !== null && baseline !== 0) {
         const pct = ((bestPrimary - baseline) / baseline) * 100;
@@ -895,6 +905,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       const secondaryMetrics = params.metrics ?? {};
 
       // Apply metric config (typically set on first call, sticky after that)
+      if (params.experiment_name) state.name = params.experiment_name;
       if (params.metric_name) state.metricName = params.metric_name;
       if (params.metric_unit !== undefined) state.metricUnit = params.metric_unit;
       if (params.direction === "lower" || params.direction === "higher") {
@@ -951,6 +962,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
         if (state.results.length === 1) {
           output += JSON.stringify({
             type: "config",
+            name: state.name,
             metricName: state.metricName,
             metricUnit: state.metricUnit,
             bestDirection: state.bestDirection,
