@@ -989,4 +989,20 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       updateWidget(ctx);
     },
   });
+
+  // -----------------------------------------------------------------------
+  // /autoresearch command — enter autoresearch mode
+  // -----------------------------------------------------------------------
+
+  pi.registerCommand("autoresearch", {
+    description: "Start or resume an autoresearch experiment loop",
+    handler: async (args, ctx) => {
+      // Send the skill invocation as a user message so the LLM picks it up
+      ctx.sendUserMessage(
+        args
+          ? `Start autoresearch: ${args}`
+          : "Start or resume autoresearch. Read autoresearch.md if it exists, otherwise gather context and set up."
+      );
+    },
+  });
 }
