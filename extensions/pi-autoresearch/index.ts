@@ -904,9 +904,9 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const secondaryMetrics = params.metrics ?? {};
 
-      // Apply metric config (typically set on first call, sticky after that)
-      if (params.experiment_name) state.name = params.experiment_name;
-      if (params.metric_name) state.metricName = params.metric_name;
+      // Apply config (first call only — ignored once set)
+      if (params.experiment_name && !state.name) state.name = params.experiment_name;
+      if (params.metric_name && state.metricName === "metric") state.metricName = params.metric_name;
       if (params.metric_unit !== undefined) state.metricUnit = params.metric_unit;
       if (params.direction === "lower" || params.direction === "higher") {
         state.bestDirection = params.direction;
