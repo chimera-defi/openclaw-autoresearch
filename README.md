@@ -6,8 +6,7 @@ Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). W
 
 ---
 
-<!-- screenshot -->
-<!-- Add screenshot here -->
+![pi-autoresearch dashboard](pi-autoresearch.png)
 
 ---
 
