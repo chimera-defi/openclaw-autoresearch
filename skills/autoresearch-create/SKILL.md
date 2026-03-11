@@ -119,9 +119,9 @@ LOOP FOREVER:
    - Structural changes (splitting, merging, reordering)
 2. Edit files with the idea
 3. Use `run_experiment` with `./autoresearch.sh`
-4. Parse the `METRIC` lines from the output. Use `log_experiment` to record the result with the primary metric and secondary `metrics` dict. **`log_experiment` automatically commits** with the description as commit message and a `Result: {...}` trailer containing all metrics.
-5. If metric improved AND constraints met → keep (status: `keep`). Append to the Progress Log in `autoresearch.md`.
-6. If metric worse OR constraints broken → `git reset --hard HEAD~1` (status: `discard` or `crash`)
+4. Parse the `METRIC` lines from the output. **Always call `log_experiment`** — for keeps, discards, and crashes. `log_experiment` automatically commits with the description as commit message and a `Result: {...}` trailer containing all metrics.
+5. If metric improved AND constraints met → `log_experiment` with status `keep`. Append to the Progress Log in `autoresearch.md`.
+6. If metric worse OR constraints broken → `log_experiment` with status `discard` or `crash` **first**, then `git reset --hard HEAD~1` to revert.
 8. Repeat
 
 **Simplicity criterion**: all else being equal, simpler is better. Removing code for equal results is a win.
