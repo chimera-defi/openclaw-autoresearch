@@ -70,3 +70,20 @@ Bash script (`set -euo pipefail`) that: pre-checks fast (syntax errors in <1s), 
 - **Resuming:** if `autoresearch.md` exists, read it + git log, continue looping.
 
 **NEVER STOP.** The user may be away for hours. Keep going until interrupted.
+
+## Ideas Backlog
+
+When you discover complex but promising optimizations that you decide not to pursue right now, **append them as bullet points to `autoresearch.ideas.md`**. Don't let good ideas get lost.
+
+If the loop stops (context limit, crash, etc.) and `autoresearch.ideas.md` exists, you'll be asked to:
+1. Read the ideas file and use it as inspiration for new experiment paths
+2. Prune ideas that are duplicated, already tried, or clearly bad
+3. Create experiments based on the remaining ideas
+4. If nothing is left, try to come up with your own new ideas
+5. If all paths are exhausted, delete `autoresearch.ideas.md` and write a final summary report
+
+When there is no `autoresearch.ideas.md` file and the loop ends, the research is complete.
+
+## User Steers
+
+User messages sent while an experiment is running are **automatically queued** and delivered to you after your next `log_experiment` call. Finish your current experiment first — don't stop or ask for confirmation. Incorporate the user's idea in the next experiment.

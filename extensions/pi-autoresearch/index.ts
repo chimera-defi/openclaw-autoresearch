@@ -472,6 +472,9 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   let autoresearchMode = false;
   let lastCtx: ExtensionContext | null = null;
 
+  // Message queue: user steers are held until the next log_experiment call
+  let messageQueue: string[] = [];
+
   // Running experiment state (for spinner in fullscreen overlay)
   let runningExperiment: { startedAt: number; command: string } | null = null;
   let overlayTui: { requestRender: () => void } | null = null;
@@ -710,10 +713,40 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
   pi.on("session_fork", async (_e, ctx) => reconstructState(ctx));
   pi.on("session_tree", async (_e, ctx) => reconstructState(ctx));
 
-  // Clear running experiment state when agent stops
-  pi.on("agent_end", async () => {
+  // Clear running experiment state when agent stops; check ideas file for continuation
+  pi.on("agent_end", async (_event, ctx) => {
     runningExperiment = null;
     if (overlayTui) overlayTui.requestRender();
+
+    if (!autoresearchMode) return;
+
+    const ideasPath = path.join(ctx.cwd, "autoresearch.ideas.md");
+    if (fs.existsSync(ideasPath)) {
+      // Ideas file exists — send continuation message to pick up where we left off
+      pi.sendUserMessage(
+        "The optimization loop stopped. Read autoresearch.ideas.md — use the ideas as inspiration for new experiment paths. " +
+        "Prune any ideas that are duplicated, already tried, or clearly bad. Then create experiments based on what remains. " +
+        "If nothing useful is left, see if you can come up with your own ideas. " +
+        "If you've exhausted all paths, delete autoresearch.ideas.md and write a final report."
+      );
+    }
+  });
+
+  // Queue user messages during active autoresearch runs — flush after log_experiment
+  pi.on("input", async (event, ctx) => {
+    if (!autoresearchMode) return { action: "continue" as const };
+    if (ctx.isIdle()) return { action: "continue" as const };
+    // Only queue interactive user messages, not extension-injected ones
+    if (event.source !== "interactive") return { action: "continue" as const };
+    // Don't queue commands (/, !, !!)
+    if (typeof event.text === "string" && /^[\/!]/.test(event.text.trim())) return { action: "continue" as const };
+
+    const text = typeof event.text === "string" ? event.text : "";
+    if (!text.trim()) return { action: "continue" as const };
+
+    messageQueue.push(text);
+    ctx.ui.notify(`Queued steer (will apply after next log_experiment): "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`, "info");
+    return { action: "handled" as const };
   });
 
   // When in autoresearch mode, add a static note to the system prompt.
@@ -722,13 +755,26 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
     if (!autoresearchMode) return;
 
     const mdPath = path.join(ctx.cwd, "autoresearch.md");
+    const ideasPath = path.join(ctx.cwd, "autoresearch.ideas.md");
+
+    let extra =
+      "\n\n## Autoresearch Mode (ACTIVE)" +
+      "\nYou are in autoresearch mode. Optimize the primary metric through an autonomous experiment loop." +
+      "\nUse init_experiment, run_experiment, and log_experiment tools. NEVER STOP until interrupted." +
+      `\nExperiment rules: ${mdPath} — read this file at the start of every session and after compaction.` +
+      "\n\n### Ideas Backlog" +
+      `\nIf you discover complex but promising optimizations you decide not to pursue yet, append them as bullet points to ${ideasPath}.` +
+      "\nThis serves as a backlog of future experiment paths. Don't let good ideas get lost — write them down." +
+      "\n\n### User Steers" +
+      "\nUser messages during experiments are ideas to try. They are automatically queued and delivered after your next log_experiment call." +
+      "\nDo NOT stop or ask for confirmation — finish your current experiment, log it, and then incorporate the user's idea in the next experiment.";
+
+    if (messageQueue.length > 0) {
+      extra += `\n\n(${messageQueue.length} user steer${messageQueue.length > 1 ? "s" : ""} queued — will be delivered after next log_experiment.)`;
+    }
 
     return {
-      systemPrompt: event.systemPrompt +
-        "\n\n## Autoresearch Mode (ACTIVE)" +
-        "\nYou are in autoresearch mode. Optimize the primary metric through an autonomous experiment loop." +
-        "\nUse init_experiment, run_experiment, and log_experiment tools. NEVER STOP until interrupted." +
-        `\nExperiment rules: ${mdPath} — read this file at the start of every session and after compaction.`,
+      systemPrompt: event.systemPrompt + extra,
     };
   });
 
@@ -968,7 +1014,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       "After run_experiment, always call log_experiment to record the result.",
       "log_experiment automatically runs git add -A && git commit with the description and a Result trailer. Do NOT commit manually before calling log_experiment.",
       "Use status 'keep' if the PRIMARY metric improved. 'discard' if worse or unchanged. 'crash' if it failed. Secondary metrics are for monitoring — they almost never affect keep/discard. Only discard a primary improvement if a secondary metric degraded catastrophically, and explain why in the description.",
-
+      "If you discover complex but promising optimizations you won't pursue immediately, append them as bullet points to autoresearch.ideas.md. Don't let good ideas get lost.",
     ],
     parameters: LogParams,
 
@@ -1127,6 +1173,16 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
 
       // Refresh fullscreen overlay if open
       if (overlayTui) overlayTui.requestRender();
+
+      // Flush queued user steers — deliver as a single steer message
+      if (messageQueue.length > 0) {
+        const queued = messageQueue.splice(0);
+        const steerText = queued.length === 1
+          ? `User steer (queued): ${queued[0]}`
+          : `User steers (queued):\n${queued.map((m) => `- ${m}`).join("\n")}`;
+        text += `\n\n📬 ${queued.length} queued steer${queued.length > 1 ? "s" : ""} from user — see next message.`;
+        pi.sendUserMessage(steerText, { deliverAs: "followUp" });
+      }
 
       return {
         content: [{ type: "text", text }],
