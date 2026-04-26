@@ -16,7 +16,7 @@ Three tools drive the loop:
 | `run_experiment` | Executes a shell command, times it, captures stdout/stderr, parses `METRIC name=number` lines, and opens a pending experiment window that must be logged before another run can start. |
 | `log_experiment` | Records the pending run. The first logged run in a segment is tagged as the baseline automatically. `keep` auto-commits to git. `discard`/`crash` log without committing, and `discard` now requires an `idea` note that is appended to `autoresearch.ideas.md`. If the prior `run_experiment` captured the primary metric, `log_experiment` can infer `commit` and `metric` automatically. After 3+ runs in a segment, it also reports a confidence score for the best improvement versus noise. |
 
-Each tool also accepts an optional `cwd` so callers can target a nested repo explicitly instead of relying on the current session working directory.
+In OpenClaw sessions, the plugin uses the host-provided `workspaceDir` as the normal repo root. Each tool also accepts an optional `cwd` so callers can explicitly target a nested or non-session repo when needed.
 
 All state lives in six repo-root files:
 
@@ -33,7 +33,7 @@ The design is file-first: any agent can pick up the repo-root files and continue
 
 ## Install
 
-Requires OpenClaw `2026.3.13` or newer.
+Requires OpenClaw `2026.4.25` or newer.
 Needs bash, git, and a git repo.
 
 Use OpenClaw's plugin installer:
@@ -72,7 +72,7 @@ after restart. OpenClaw reads the package metadata, loads the root
 Verify:
 
 - skill: `autoresearch-create`
-- tools: `init_experiment`, `run_experiment`, `log_experiment`
+- tools: `init_experiment`, `run_experiment`, `log_experiment`, `autoresearch_status`
 - command: `/autoresearch` (recommended)
 - direct skill fallback: `/skill autoresearch-create`
 
@@ -123,15 +123,17 @@ This port preserves upstream semantics, names, and file contracts while adapting
 
 ```bash
 npm install --include=dev
+npm run check:release-metadata
 npm run typecheck
 npm test
 npm run validate
 npm run release:verify
+npm run smoke:openclaw-host -- /absolute/path/to/openclaw
 ```
 
 Release instructions, including npm 2FA publishing, live in [`RELEASING.md`](RELEASING.md).
 
-The local test shim supports typechecking and tests without a full OpenClaw host checkout. Runtime behavior depends on a real OpenClaw host.
+The local test shim supports typechecking and tests without a full OpenClaw host checkout. Runtime behavior depends on a real OpenClaw host, so run the host smoke against a current checkout before release.
 
 ## License
 

@@ -30,6 +30,15 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function ensureObject(parent, key) {
+  const value = parent[key];
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  parent[key] = {};
+  return parent[key];
+}
+
 function fail(message) {
   console.error(`release metadata check failed: ${message}`);
   process.exitCode = 1;
@@ -37,21 +46,42 @@ function fail(message) {
 
 const pkg = readJson(packagePath);
 const manifest = readJson(pluginManifestPath);
+const buildVersion = pkg.openclaw?.build?.openclawVersion;
+const expectedCompatRange = typeof buildVersion === "string" ? `>=${buildVersion}` : null;
 
 if (writeMode) {
-  let changed = false;
+  let packageChanged = false;
+  let manifestChanged = false;
   if (manifest.version !== pkg.version) {
     manifest.version = pkg.version;
-    changed = true;
+    manifestChanged = true;
   }
   if (manifest.description !== pkg.description) {
     manifest.description = pkg.description;
-    changed = true;
+    manifestChanged = true;
   }
-  if (changed) {
+  if (expectedCompatRange) {
+    const openclaw = ensureObject(pkg, "openclaw");
+    const install = ensureObject(openclaw, "install");
+    const compat = ensureObject(openclaw, "compat");
+    if (install.minHostVersion !== expectedCompatRange) {
+      install.minHostVersion = expectedCompatRange;
+      packageChanged = true;
+    }
+    if (compat.pluginApi !== expectedCompatRange) {
+      compat.pluginApi = expectedCompatRange;
+      packageChanged = true;
+    }
+  }
+  if (packageChanged) {
+    writeJson(packagePath, pkg);
+    console.log(`synced ${path.relative(repoRoot, packagePath)}`);
+  }
+  if (manifestChanged) {
     writeJson(pluginManifestPath, manifest);
     console.log(`synced ${path.relative(repoRoot, pluginManifestPath)}`);
-  } else {
+  }
+  if (!packageChanged && !manifestChanged) {
     console.log("release metadata already in sync");
   }
   process.exit(process.exitCode ?? 0);
@@ -69,10 +99,8 @@ if (manifest.description !== pkg.description) {
   fail("openclaw.plugin.json description must match package.json description");
 }
 
-const buildVersion = pkg.openclaw?.build?.openclawVersion;
 const minHostVersion = pkg.openclaw?.install?.minHostVersion;
 const pluginApiVersion = pkg.openclaw?.compat?.pluginApi;
-const expectedCompatRange = typeof buildVersion === "string" ? `>=${buildVersion}` : null;
 
 if (typeof buildVersion !== "string" || buildVersion.trim().length === 0) {
   fail("package.json openclaw.build.openclawVersion must be a non-empty string");
