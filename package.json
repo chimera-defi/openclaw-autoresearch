@@ -1,6 +1,6 @@
 {
   "name": "@gianfrancopiana/openclaw-autoresearch",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Faithful OpenClaw port of pi-autoresearch.",
   "type": "module",
   "main": "./index.ts",
@@ -11,7 +11,9 @@
     "test": "vitest run",
     "validate": "npm run check:release-metadata && npm run typecheck && npm run test",
     "release:verify": "npm run validate && npm pack --dry-run",
-    "smoke:openclaw-host": "node ./scripts/smoke-openclaw-host.mjs"
+    "prepublishOnly": "npm run release:verify",
+    "smoke:openclaw-host": "node ./scripts/smoke-openclaw-host.mjs",
+    "smoke:registry-openclaw-host": "node ./scripts/smoke-openclaw-registry.mjs"
   },
   "keywords": [
     "openclaw",
@@ -50,7 +52,12 @@
     "@sinclair/typebox": "0.34.48"
   },
   "peerDependencies": {
-    "openclaw": "*"
+    "openclaw": ">=2026.4.25"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"
