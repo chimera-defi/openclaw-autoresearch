@@ -9,4 +9,11 @@ describe("CI workflow", () => {
     expect(workflow).toContain("repository: openclaw/openclaw");
     expect(workflow).toContain("npm run smoke:openclaw-host");
   });
+
+  it("uses Node 24-compatible GitHub Actions", () => {
+    expect(workflow).toContain("actions/checkout@v6");
+    expect(workflow).toContain("actions/setup-node@v6");
+    expect(workflow).not.toContain("actions/checkout@v4");
+    expect(workflow).not.toContain("actions/setup-node@v4");
+  });
 });

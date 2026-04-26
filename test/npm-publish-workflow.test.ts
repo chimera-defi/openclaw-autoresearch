@@ -18,6 +18,10 @@ describe("npm publish workflow", () => {
     expect(workflow).toContain("npm view \"${PACKAGE_NAME}@${PACKAGE_VERSION}\" version");
     expect(workflow).toContain("if: steps.package-state.outputs.already_published != 'true'");
     expect(workflow).toContain("npm publish --provenance --access public");
+    expect(workflow).toContain("actions/checkout@v6");
+    expect(workflow).toContain("actions/setup-node@v6");
+    expect(workflow).not.toContain("actions/checkout@v4");
+    expect(workflow).not.toContain("actions/setup-node@v4");
     expect(workflow).not.toContain("NODE_AUTH_TOKEN");
     expect(workflow).not.toContain("NPM_TOKEN");
   });
