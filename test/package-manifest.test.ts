@@ -28,8 +28,8 @@ describe("package manifest contract", () => {
 
     expect(manifest.openclawRuntime).toBeUndefined();
     expect(manifest.openclaw?.extensions).toEqual(["./index.ts"]);
-    expect(manifest.openclaw?.install?.minHostVersion).toBe(">=2026.3.13");
-    expect(manifest.openclaw?.compat?.pluginApi).toBe(">=2026.3.13");
-    expect(manifest.openclaw?.build?.openclawVersion).toBe("2026.3.13");
+    expect(manifest.openclaw?.install?.minHostVersion).toBe(">=2026.4.25");
+    expect(manifest.openclaw?.compat?.pluginApi).toBe(">=2026.4.25");
+    expect(manifest.openclaw?.build?.openclawVersion).toBe("2026.4.25");
   });
 });
