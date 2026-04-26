@@ -12,6 +12,7 @@
     "validate": "npm run check:release-metadata && npm run typecheck && npm run test",
     "release:verify": "npm run validate && npm pack --dry-run",
     "release:check-tag": "node ./scripts/check-release-tag.mjs",
+    "release:prepare": "node ./scripts/prepare-release.mjs",
     "prepublishOnly": "npm run release:verify",
     "smoke:openclaw-host": "node ./scripts/smoke-openclaw-host.mjs",
     "smoke:registry-openclaw-host": "node ./scripts/smoke-openclaw-registry.mjs"
