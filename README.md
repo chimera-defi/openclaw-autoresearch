@@ -129,6 +129,7 @@ npm test
 npm run validate
 npm run release:verify
 npm run smoke:openclaw-host -- /absolute/path/to/openclaw
+npm run smoke:registry-openclaw-host -- <published-version> /absolute/path/to/openclaw
 ```
 
 Release instructions, including npm 2FA publishing, live in [`RELEASING.md`](RELEASING.md).

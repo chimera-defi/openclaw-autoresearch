@@ -72,6 +72,17 @@ if (writeMode) {
       compat.pluginApi = expectedCompatRange;
       packageChanged = true;
     }
+    const peerDependencies = ensureObject(pkg, "peerDependencies");
+    if (peerDependencies.openclaw !== expectedCompatRange) {
+      peerDependencies.openclaw = expectedCompatRange;
+      packageChanged = true;
+    }
+    const peerDependenciesMeta = ensureObject(pkg, "peerDependenciesMeta");
+    const openclawPeerMeta = ensureObject(peerDependenciesMeta, "openclaw");
+    if (openclawPeerMeta.optional !== true) {
+      openclawPeerMeta.optional = true;
+      packageChanged = true;
+    }
   }
   if (packageChanged) {
     writeJson(packagePath, pkg);
@@ -101,6 +112,8 @@ if (manifest.description !== pkg.description) {
 
 const minHostVersion = pkg.openclaw?.install?.minHostVersion;
 const pluginApiVersion = pkg.openclaw?.compat?.pluginApi;
+const peerOpenClawVersion = pkg.peerDependencies?.openclaw;
+const peerOpenClawMeta = pkg.peerDependenciesMeta?.openclaw;
 
 if (typeof buildVersion !== "string" || buildVersion.trim().length === 0) {
   fail("package.json openclaw.build.openclawVersion must be a non-empty string");
@@ -116,6 +129,16 @@ if (pluginApiVersion !== expectedCompatRange) {
   fail(
     `package.json openclaw.compat.pluginApi (${String(pluginApiVersion)}) must match >=openclaw.build.openclawVersion (${String(expectedCompatRange)})`,
   );
+}
+
+if (peerOpenClawVersion !== expectedCompatRange) {
+  fail(
+    `package.json peerDependencies.openclaw (${String(peerOpenClawVersion)}) must match >=openclaw.build.openclawVersion (${String(expectedCompatRange)})`,
+  );
+}
+
+if (peerOpenClawMeta?.optional !== true) {
+  fail("package.json peerDependenciesMeta.openclaw.optional must be true");
 }
 
 const toolContracts = manifest.contracts?.tools;
