@@ -27,3 +27,43 @@ jobs:
 
       - name: Run release verification
         run: npm run release:verify
+
+  host-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Check out OpenClaw host
+        uses: actions/checkout@v4
+        with:
+          repository: openclaw/openclaw
+          path: openclaw
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: plugin/package-lock.json
+
+      - name: Install plugin dependencies
+        working-directory: plugin
+        run: npm ci
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install OpenClaw dependencies
+        working-directory: openclaw
+        run: pnpm install --frozen-lockfile
+
+      - name: Build OpenClaw host
+        working-directory: openclaw
+        run: pnpm build
+
+      - name: Run OpenClaw host smoke
+        working-directory: plugin
+        run: npm run smoke:openclaw-host -- ../openclaw
