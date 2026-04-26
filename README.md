@@ -132,7 +132,7 @@ npm run smoke:openclaw-host -- /absolute/path/to/openclaw
 npm run smoke:registry-openclaw-host -- <published-version> /absolute/path/to/openclaw
 ```
 
-Release instructions, including npm 2FA publishing, live in [`RELEASING.md`](RELEASING.md).
+Release instructions, including GitHub Actions trusted publishing with npm provenance, live in [`RELEASING.md`](RELEASING.md).
 
 The local test shim supports typechecking and tests without a full OpenClaw host checkout. Runtime behavior depends on a real OpenClaw host, so run the host smoke against a current checkout before release.
 
