@@ -6,6 +6,8 @@ type PackageManifest = {
   version?: unknown;
   description?: unknown;
   keywords?: unknown;
+  peerDependencies?: Record<string, unknown>;
+  peerDependenciesMeta?: Record<string, { optional?: unknown }>;
   openclaw?: {
     install?: {
       minHostVersion?: unknown;
@@ -44,6 +46,8 @@ describe("release metadata contract", () => {
     expect(buildVersion).toBe("2026.4.25");
     expect(pkg.openclaw?.install?.minHostVersion).toBe(`>=${buildVersion}`);
     expect(pkg.openclaw?.compat?.pluginApi).toBe(`>=${buildVersion}`);
+    expect(pkg.peerDependencies?.openclaw).toBe(`>=${buildVersion}`);
+    expect(pkg.peerDependenciesMeta?.openclaw?.optional).toBe(true);
   });
 
   it("publishes discovery metadata for the OpenClaw ecosystem", () => {

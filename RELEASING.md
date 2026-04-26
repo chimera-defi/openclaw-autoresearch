@@ -23,8 +23,8 @@
    npm run release:verify
    ```
 
-   CI runs the same release verification, so metadata drift should fail before
-   publish.
+   CI runs the same release verification, and `prepublishOnly` runs it again
+   before `npm publish`.
 
 3. Smoke-test against a current local OpenClaw checkout:
 
@@ -40,7 +40,13 @@
 
    Replace `123456` with the current code from your authenticator app.
 
-5. Verify install:
+5. Verify the published registry tarball against the same host:
+
+   ```bash
+   npm run smoke:registry-openclaw-host -- <published-version> /absolute/path/to/openclaw
+   ```
+
+6. Verify install:
 
    ```bash
    openclaw plugins install @gianfrancopiana/openclaw-autoresearch
