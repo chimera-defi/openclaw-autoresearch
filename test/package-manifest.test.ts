@@ -31,9 +31,9 @@ describe("package manifest contract", () => {
 
     expect(manifest.openclawRuntime).toBeUndefined();
     expect(manifest.openclaw?.extensions).toEqual(["./index.ts"]);
-    expect(manifest.openclaw?.install?.minHostVersion).toBe(">=2026.4.25");
-    expect(manifest.openclaw?.compat?.pluginApi).toBe(">=2026.4.25");
-    expect(manifest.openclaw?.build?.openclawVersion).toBe("2026.4.25");
+    expect(manifest.openclaw?.install?.minHostVersion).toBe(">=2026.4.24");
+    expect(manifest.openclaw?.compat?.pluginApi).toBe(">=2026.4.24");
+    expect(manifest.openclaw?.build?.openclawVersion).toBe("2026.4.24");
   });
 
   it("runs release verification before publishing", () => {
@@ -54,7 +54,7 @@ describe("package manifest contract", () => {
   it("aligns the npm peer dependency with the supported OpenClaw host range", () => {
     const manifest = readPackageManifest();
 
-    expect(manifest.peerDependencies?.openclaw).toBe(">=2026.4.25");
+    expect(manifest.peerDependencies?.openclaw).toBe(">=2026.4.24");
     expect(manifest.peerDependenciesMeta?.openclaw?.optional).toBe(true);
   });
 });
