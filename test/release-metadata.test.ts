@@ -43,7 +43,7 @@ describe("release metadata contract", () => {
     expect(typeof pkg.version).toBe("string");
     expect(manifest.version).toBe(pkg.version);
     expect(manifest.description).toBe(pkg.description);
-    expect(buildVersion).toBe("2026.4.25");
+    expect(buildVersion).toBe("2026.4.24");
     expect(pkg.openclaw?.install?.minHostVersion).toBe(`>=${buildVersion}`);
     expect(pkg.openclaw?.compat?.pluginApi).toBe(`>=${buildVersion}`);
     expect(pkg.peerDependencies?.openclaw).toBe(`>=${buildVersion}`);
