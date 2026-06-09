@@ -1,5 +1,5 @@
 # PR Response State
-last_run: 2026-06-09T14:15
+last_run: 2026-06-09T19:15
 
 prs:
   - number: 1
@@ -8,8 +8,8 @@ prs:
     attempt_count: 0
     status: skipped
     notes: >
-      No CI configured. No CHANGES_REQUESTED. Older maintenance PR from
-      2026-06-01. Awaiting human review/merge.
+      No CI configured. No CHANGES_REQUESTED. Older maintenance PR.
+      Awaiting human review/merge.
 
   - number: 2
     repo: chimera-defi/openclaw-autoresearch
@@ -26,7 +26,7 @@ prs:
     attempt_count: 0
     status: skipped
     notes: >
-      docs(dream) consolidation PR 2026-06-06. No CI configured (0 check runs).
+      docs(dream) consolidation PR 2026-06-06. No CI configured.
       No CHANGES_REQUESTED. Awaiting human review/merge.
 
   - number: 4
@@ -35,7 +35,7 @@ prs:
     attempt_count: 0
     status: skipped
     notes: >
-      docs(dream): 2026-06-07 consolidation pass. No CI configured (0 check runs).
+      docs(dream): 2026-06-07 consolidation pass. No CI configured.
       No CHANGES_REQUESTED. Awaiting human review/merge.
 
   - number: 5
@@ -44,6 +44,5 @@ prs:
     attempt_count: 0
     status: skipped
     notes: >
-      chore(maintenance): 2026-06-09 - TS cleanup pass. No CI configured
-      (0 check runs). Confirmed on 2026-06-09T14:15 re-check. No CHANGES_REQUESTED.
-      Awaiting human review/merge.
+      chore(maintenance): 2026-06-09 - TS cleanup pass. No CI configured.
+      No CHANGES_REQUESTED. Awaiting human review/merge.
