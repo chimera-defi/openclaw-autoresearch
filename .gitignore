@@ -1,2 +1,5 @@
 node_modules/
 .tmp-*.md
+.env
+.env.*
+.env.local
