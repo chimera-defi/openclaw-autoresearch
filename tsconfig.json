@@ -7,7 +7,6 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
-    "baseUrl": ".",
     "paths": {
       "openclaw/plugin-sdk": ["./test/shims/openclaw-plugin-sdk-core.ts"]
     }
