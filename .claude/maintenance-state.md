@@ -1,10 +1,11 @@
 # Maintenance State
-last_run: 2026-06-04
-focus: test-coverage
+last_run: 2026-06-16
+focus: ts-cleanup
 status: completed
-completed: [add 23 tests for confidence.ts and metrics.ts (27→50 tests), PR #2 open (no CI configured)]
+completed: [remove deprecated baseUrl from tsconfig.json (TS 7.0 will drop it; paths with "./" prefix work since TS 5.0), commit package-lock.json from npm install (fixes missing @types/node + vitest/globals type defs)]
 in_progress:
-pending: [session-lock.ts, config.ts (constants only), checkpoint.ts, ideas.ts, session-doc.ts — zero coverage]
+pending: [session-lock.ts, config.ts, checkpoint.ts, ideas.ts, session-doc.ts — zero test coverage]
 known_failures:
-  - openclaw-autoresearch has no GitHub Actions workflow — no CI runs on PRs
-skip_next_run: [confidence.ts, metrics.ts tests already added]
+  - No CI configured on this repo — PRs show 0 check runs
+  - npm install needed before typecheck; no CI auto-installs deps
+skip_next_run: []
