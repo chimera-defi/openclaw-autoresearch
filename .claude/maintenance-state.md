@@ -1,8 +1,8 @@
 # Maintenance State
-last_run: 2026-06-16
-focus: ts-cleanup
+last_run: 2026-06-19
+focus: dead-code
 status: completed
-completed: [remove deprecated baseUrl from tsconfig.json (TS 7.0 will drop it; paths with "./" prefix work since TS 5.0), commit package-lock.json from npm install (fixes missing @types/node + vitest/globals type defs)]
+completed: [dead code scan clean — tsc noUnusedLocals found no issues, no TODOs/FIXMEs, no console.log debug statements. No orphaned TS files found. Repo is in good shape.]
 in_progress:
 pending: [session-lock.ts, config.ts, checkpoint.ts, ideas.ts, session-doc.ts — zero test coverage]
 known_failures:
