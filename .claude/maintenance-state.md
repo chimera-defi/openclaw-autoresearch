@@ -1,11 +1,13 @@
 # Maintenance State
-last_run: 2026-06-16
-focus: ts-cleanup
+last_run: 2026-06-27
+focus: observability
 status: completed
-completed: [remove deprecated baseUrl from tsconfig.json (TS 7.0 will drop it; paths with "./" prefix work since TS 5.0), commit package-lock.json from npm install (fixes missing @types/node + vitest/globals type defs)]
+completed:
+  - fix(hooks.ts): wrap agent_end and session_end handlers in try/catch to prevent stale lock on fs error
+  - fix(run-experiment.ts): guard onUpdate call so runInFlight is never stuck on callback failure
 in_progress:
-pending: [session-lock.ts, config.ts, checkpoint.ts, ideas.ts, session-doc.ts — zero test coverage]
+pending:
+  - session-lock.ts, config.ts, checkpoint.ts, ideas.ts, session-doc.ts — zero test coverage (from 2026-06-16)
 known_failures:
   - No CI configured on this repo — PRs show 0 check runs
-  - npm install needed before typecheck; no CI auto-installs deps
-skip_next_run: []
+  - npm install fails in sandbox (missing node_modules)
