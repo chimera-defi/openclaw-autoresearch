@@ -92,25 +92,33 @@ export function registerAutoresearchHooks(api: OpenClawPluginApi): void {
     });
 
     hookApi.on("agent_end", (_event, ctx) => {
-      const cwd = resolveHookCwd(api, ctx);
-      if (cwd === null) {
-        return;
-      }
+      try {
+        const cwd = resolveHookCwd(api, ctx);
+        if (cwd === null) {
+          return;
+        }
 
-      const state = reconstructStateFromJsonl(cwd);
-      if (state.mode === "active" && state.ideas.hasBacklog) {
-        setAutoresearchContinuationReminder(cwd, true);
+        const state = reconstructStateFromJsonl(cwd);
+        if (state.mode === "active" && state.ideas.hasBacklog) {
+          setAutoresearchContinuationReminder(cwd, true);
+        }
+      } catch (error) {
+        console.error("[autoresearch] agent_end hook error:", error);
       }
     });
 
     hookApi.on("session_end", (_event, ctx) => {
-      const cwd = resolveHookCwd(api, ctx);
-      if (cwd === null) {
-        return;
-      }
+      try {
+        const cwd = resolveHookCwd(api, ctx);
+        if (cwd === null) {
+          return;
+        }
 
-      removeAutoresearchSessionLock(cwd);
-      clearAutoresearchRuntimeState(cwd);
+        removeAutoresearchSessionLock(cwd);
+        clearAutoresearchRuntimeState(cwd);
+      } catch (error) {
+        console.error("[autoresearch] session_end hook error:", error);
+      }
     });
     return;
   }
