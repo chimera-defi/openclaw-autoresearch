@@ -77,10 +77,14 @@ export function createRunExperimentTool(api: OpenClawPluginApi) {
       setAutoresearchRunInFlight(cwd, true);
 
       if (onUpdate) {
-        await onUpdate({
-          content: [{ type: "text" as const, text: `Running: ${params.command}` }],
-          details: { phase: "running" },
-        });
+        try {
+          await onUpdate({
+            content: [{ type: "text" as const, text: `Running: ${params.command}` }],
+            details: { phase: "running" },
+          });
+        } catch (error) {
+          console.error("[autoresearch] run_experiment onUpdate error:", error);
+        }
       }
 
       let details;
