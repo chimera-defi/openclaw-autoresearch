@@ -161,7 +161,11 @@ export function createRunExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun,
       });
-      syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      try {
+        syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      } catch {
+        // session doc write failure should not prevent returning experiment results
+      }
 
       let text = "";
       if (details.timedOut) {

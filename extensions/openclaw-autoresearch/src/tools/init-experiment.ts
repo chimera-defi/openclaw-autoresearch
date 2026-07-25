@@ -182,7 +182,11 @@ export function createInitExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun: null,
       });
-      syncAutoresearchSessionDoc(cwd, checkpoint);
+      try {
+        syncAutoresearchSessionDoc(cwd, checkpoint);
+      } catch {
+        // session doc write failure should not prevent returning init results
+      }
 
       const reinitNote = isReinit
         ? " (re-initialized - previous results archived, new baseline needed)"
