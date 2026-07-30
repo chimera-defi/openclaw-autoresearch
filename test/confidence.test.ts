@@ -58,10 +58,12 @@ describe("computeConfidence", () => {
   });
 
   it("returns null when bestKept equals baseline metric", () => {
+    // Three distinct values → MAD = 10 (non-zero), so the zero-MAD guard does NOT fire.
+    // The sole "keep" run has the same metric as the baseline → bestKept == baseline → null.
     const runs = [
-      { metric: 100, status: "keep" }, // baseline (first finite)
-      { metric: 95, status: "discard" },
-      { metric: 100, status: "keep" }, // bestKept == baseline → null
+      { metric: 100, status: "keep" }, // baseline (first finite) AND bestKept
+      { metric: 90, status: "discard" },
+      { metric: 80, status: "discard" },
     ];
     expect(computeConfidence(runs, "lower")).toBeNull();
   });
