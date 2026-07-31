@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { AUTORESEARCH_ROOT_FILES, getAutoresearchRootFilePath } from "./files.js";
+import { getAutoresearchRootFilePath } from "./files.js";
 import type {
   AutoresearchRunSnapshot,
   AutoresearchStateSnapshot,
