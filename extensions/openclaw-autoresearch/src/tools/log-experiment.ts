@@ -269,7 +269,11 @@ export function createLogExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun: null,
       });
-      syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      try {
+        syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      } catch (err) {
+        console.error("[log-experiment] session-doc sync failed (non-fatal):", err);
+      }
 
       return {
         content: [
