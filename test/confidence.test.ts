@@ -58,13 +58,14 @@ describe("computeConfidence", () => {
       { metric: 20, status: "keep" },
       { metric: 30, status: "keep" },
     ];
-    // baseline is first finite run (metric=10), bestKept for 'lower' would be min of keep runs
-    // bestKept (lower) = min(20,30) = 20; baseline = 10; they differ so result should be non-null
-    // Let's make them equal: baseline=20, keep run also has 20
+    // Need nonzero MAD so the equality guard is what triggers null, not MAD=0.
+    // values=[10,10,20,30] → median=15, deviations=[5,5,5,15], MAD=5 (nonzero).
+    // bestKept for "lower" = min(10,20) = 10 = baseline.metric → null.
     const runs2 = [
-      { metric: 20, status: "drop" },
+      { metric: 10, status: "drop" },
+      { metric: 10, status: "keep" },
       { metric: 20, status: "keep" },
-      { metric: 30, status: "keep" },
+      { metric: 30, status: "drop" },
     ];
     expect(computeConfidence(runs2, "lower")).toBeNull();
   });
@@ -94,6 +95,8 @@ describe("computeConfidence", () => {
   });
 
   it("selects the best kept run for lower direction", () => {
+    // values=[100,60,70,80], median=75, sorted deviations=[5,5,15,25], MAD=10, bestKept=60, baseline=100
+    // score = |60-100|/10 = 4.0
     const runs = [
       { metric: 100, status: "drop" },
       { metric: 60, status: "keep" },
@@ -101,12 +104,12 @@ describe("computeConfidence", () => {
       { metric: 80, status: "keep" },
     ];
     const resultLower = computeConfidence(runs, "lower");
-    // lower is better, so bestKept = 60 (smallest); baseline = 100
-    expect(resultLower).not.toBeNull();
-    expect(resultLower).toBeGreaterThan(0);
+    expect(resultLower).toBeCloseTo(4.0, 6);
   });
 
   it("selects the best kept run for higher direction", () => {
+    // values=[50,60,70,80], median=65, MAD=10, bestKept=80, baseline=50
+    // score = |80-50|/10 = 3.0
     const runs = [
       { metric: 50, status: "drop" },
       { metric: 60, status: "keep" },
@@ -114,8 +117,7 @@ describe("computeConfidence", () => {
       { metric: 80, status: "keep" },
     ];
     const resultHigher = computeConfidence(runs, "higher");
-    expect(resultHigher).not.toBeNull();
-    expect(resultHigher).toBeGreaterThan(0);
+    expect(resultHigher).toBeCloseTo(3.0, 6);
   });
 });
 
