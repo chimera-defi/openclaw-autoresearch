@@ -52,9 +52,9 @@ describe("parseMetricLines", () => {
     expect(parseMetricLines("METRIC latency-p99 = 120")).toEqual({ "latency-p99": 120 });
   });
 
-  it("ignores lines where value is not a finite number", () => {
-    // NaN would not pass isFinite
-    expect(parseMetricLines("METRIC bad = NaN")).toEqual({});
+  it("ignores lines where value overflows to Infinity (tests the isFinite guard)", () => {
+    // 1e309 parses as Infinity — the regex matches but Number.isFinite() rejects it
+    expect(parseMetricLines("METRIC big = 1e309")).toEqual({});
   });
 
   it("last occurrence wins when metric name is duplicated", () => {
