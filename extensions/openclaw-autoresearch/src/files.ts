@@ -30,6 +30,3 @@ export function readAutoresearchRootFile(
   return fs.readFileSync(filePath, "utf8");
 }
 
-export function describeCanonicalFiles(): typeof AUTORESEARCH_ROOT_FILES {
-  return AUTORESEARCH_ROOT_FILES;
-}

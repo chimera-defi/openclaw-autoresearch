@@ -87,9 +87,3 @@ export function writeAutoresearchCheckpoint(options: {
   return checkpoint;
 }
 
-export function deleteAutoresearchCheckpoint(cwd: string): void {
-  const checkpointPath = getAutoresearchRootFilePath(cwd, "checkpoint");
-  if (fs.existsSync(checkpointPath)) {
-    fs.unlinkSync(checkpointPath);
-  }
-}
