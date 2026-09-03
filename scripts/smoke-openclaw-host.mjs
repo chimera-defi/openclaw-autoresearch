@@ -63,7 +63,7 @@ try {
 
   run(
     process.execPath,
-    [openclawCli, "plugins", "install", tarball, "--dangerously-force-unsafe-install"],
+    [openclawCli, "plugins", "install", tarball, "--force", "--accept-capabilities"],
     { cwd: hostRoot, env: smokeEnv },
   );
   const list = run(process.execPath, [openclawCli, "plugins", "list"], {
