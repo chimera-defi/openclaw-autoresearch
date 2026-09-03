@@ -77,12 +77,15 @@ export function resolveAutoresearchScope(
     sessionId = sessionIdBySessionKey.get(sessionKey) ?? null;
   }
 
-  const explicitWorkspaceDir =
+  const explicitWorkspaceDir: string | null =
     normalizeDir(scopeRef.workspaceDir) ?? normalizeDir(scopeRef.legacyCwd);
-  const workspaceDir =
-    explicitWorkspaceDir ??
-    (runId ? workspaceByRunId.get(runId) ?? null : null) ??
-    (sessionKey ? workspaceBySessionKey.get(sessionKey) ?? null : null);
+  let workspaceDir: string | null = explicitWorkspaceDir;
+  if (workspaceDir === null && runId) {
+    workspaceDir = workspaceByRunId.get(runId) ?? null;
+  }
+  if (workspaceDir === null && sessionKey) {
+    workspaceDir = workspaceBySessionKey.get(sessionKey) ?? null;
+  }
   const explicitRepoDir = normalizeDir(scopeRef.repoDir);
   const repoDir = explicitRepoDir ?? workspaceDir;
 
