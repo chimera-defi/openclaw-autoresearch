@@ -234,15 +234,6 @@ export function consumeAutoresearchSteers(ref: AutoresearchScopeRef): readonly s
   return queued;
 }
 
-export function clearAutoresearchSteers(
-  ref: AutoresearchScopeRef,
-): AutoresearchRuntimeSnapshot {
-  const { scope, state } = getMutableRuntimeState(ref);
-  state.queuedSteers = [];
-  syncActiveRuntimeScope(scope);
-  return snapshotRuntimeState(state);
-}
-
 export function setAutoresearchPendingCommand(
   ref: AutoresearchScopeRef,
   pendingCommand: PendingAutoresearchCommand,
