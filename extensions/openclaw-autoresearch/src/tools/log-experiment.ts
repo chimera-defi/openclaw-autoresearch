@@ -269,26 +269,33 @@ export function createLogExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun: null,
       });
-      syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      let sessionDocWarning: string | null = null;
+      try {
+        syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      } catch (syncErr) {
+        sessionDocWarning = `WARNING: session document (autoresearch.md) could not be updated: ${String(syncErr)}. Resume flows may act on stale state until the file is writable.`;
+      }
+
+      const resultText = buildResultText({
+        state,
+        experiment: finalExperiment,
+        baselineMetric,
+        baselineSecondaryMetrics,
+        totalRunCount: finalExperiment.run,
+        gitSummary,
+        knownSecondaryMetrics,
+        queuedSteers,
+        usedPendingRun: pendingRun !== null,
+        baseline: isBaselineRun,
+        ideaAppended,
+        confidence: finalExperiment.confidence,
+      });
 
       return {
         content: [
           {
             type: "text" as const,
-            text: buildResultText({
-              state,
-              experiment: finalExperiment,
-              baselineMetric,
-              baselineSecondaryMetrics,
-              totalRunCount: finalExperiment.run,
-              gitSummary,
-              knownSecondaryMetrics,
-              queuedSteers,
-              usedPendingRun: pendingRun !== null,
-              baseline: isBaselineRun,
-              ideaAppended,
-              confidence: finalExperiment.confidence,
-            }),
+            text: sessionDocWarning ? `${resultText}\n\n${sessionDocWarning}` : resultText,
           },
         ],
         details: {
@@ -296,6 +303,7 @@ export function createLogExperimentTool(
           experiment: finalExperiment,
           state: nextState,
           git: gitAction,
+          sessionDocSyncFailed: sessionDocWarning !== null,
         },
       };
     },

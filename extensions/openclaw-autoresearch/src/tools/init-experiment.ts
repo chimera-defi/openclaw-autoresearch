@@ -182,7 +182,12 @@ export function createInitExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun: null,
       });
-      syncAutoresearchSessionDoc(cwd, checkpoint);
+      let sessionDocWarning: string | null = null;
+      try {
+        syncAutoresearchSessionDoc(cwd, checkpoint);
+      } catch (syncErr) {
+        sessionDocWarning = `WARNING: session document (autoresearch.md) could not be updated: ${String(syncErr)}. Resume flows may act on stale state until the file is writable.`;
+      }
 
       const reinitNote = isReinit
         ? " (re-initialized - previous results archived, new baseline needed)"
@@ -192,20 +197,23 @@ export function createInitExperimentTool(
           ? `\nCarry-forward context: best prior result was ${checkpoint.carryForwardContext.metricName}=${checkpoint.carryForwardContext.run.metric}${checkpoint.carryForwardContext.metricUnit} on ${checkpoint.carryForwardContext.run.commit}.`
           : "";
 
+      const initText =
+        `Experiment initialized: "${nextState.name}"${reinitNote}\n` +
+        `Metric: ${nextState.metricName} (${nextState.metricUnit || "unitless"}, ${nextState.bestDirection} is better)\n` +
+        "Config written to autoresearch.jsonl. Now run the baseline with run_experiment, then log it before starting another run." +
+        carryForwardNote;
+
       return {
         content: [
           {
             type: "text" as const,
-            text:
-              `Experiment initialized: "${nextState.name}"${reinitNote}\n` +
-              `Metric: ${nextState.metricName} (${nextState.metricUnit || "unitless"}, ${nextState.bestDirection} is better)\n` +
-              "Config written to autoresearch.jsonl. Now run the baseline with run_experiment, then log it before starting another run." +
-              carryForwardNote,
+            text: sessionDocWarning ? `${initText}\n\n${sessionDocWarning}` : initText,
           },
         ],
         details: {
           status: "ok",
           state: nextState,
+          sessionDocSyncFailed: sessionDocWarning !== null,
         },
       };
     },

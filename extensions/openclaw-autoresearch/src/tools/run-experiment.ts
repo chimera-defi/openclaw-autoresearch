@@ -161,7 +161,12 @@ export function createRunExperimentTool(
         recentLoggedRuns: readRecentLoggedRuns(cwd, 8),
         pendingRun,
       });
-      syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      let sessionDocWarning: string | null = null;
+      try {
+        syncAutoresearchSessionDoc(cwd, nextCheckpoint);
+      } catch (syncErr) {
+        sessionDocWarning = `WARNING: session document (autoresearch.md) could not be updated: ${String(syncErr)}. Resume flows may act on stale state until the file is writable.`;
+      }
 
       let text = "";
       if (details.timedOut) {
@@ -182,6 +187,9 @@ export function createRunExperimentTool(
       }
       text +=
         "\nNext step: call log_experiment before another run. When the primary METRIC was captured, log_experiment can infer commit and metric from this run.";
+      if (sessionDocWarning) {
+        text += `\n\n${sessionDocWarning}`;
+      }
 
       return {
         content: [{ type: "text" as const, text }],
@@ -191,6 +199,7 @@ export function createRunExperimentTool(
           secondaryMetrics,
           primaryMetric,
           pendingRun,
+          sessionDocSyncFailed: sessionDocWarning !== null,
         },
       };
     },
