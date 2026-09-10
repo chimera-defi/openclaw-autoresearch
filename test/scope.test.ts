@@ -131,8 +131,8 @@ describe("forgetAutoresearchScope", () => {
 
   it("returns null sessionId after forget when key had no explicit sessionId in ref", () => {
     resolveAutoresearchScope({ sessionKey: "sk-forget4", sessionId: "sid-forget4" });
-    forgetAutoresearchScope({ sessionKey: "sk-forget4", sessionId: "sid-forget4" });
-    // After forget, looking up by key alone returns null sessionId
+    forgetAutoresearchScope({ sessionKey: "sk-forget4" });
+    // After forget with key-only ref, memoised sessionId is cleared
     const after = resolveAutoresearchScope({ sessionKey: "sk-forget4" });
     expect(after.sessionId).toBeNull();
   });
