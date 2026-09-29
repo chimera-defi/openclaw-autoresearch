@@ -53,11 +53,6 @@ describe("computeConfidence", () => {
   });
 
   it("returns null when bestKept equals baseline metric", () => {
-    const runs = [
-      { metric: 10, status: "drop" },
-      { metric: 20, status: "keep" },
-      { metric: 30, status: "keep" },
-    ];
     // Need nonzero MAD so the equality guard is what triggers null, not MAD=0.
     // values=[10,10,20,30] → median=15, deviations=[5,5,5,15], MAD=5 (nonzero).
     // bestKept for "lower" = min(10,20) = 10 = baseline.metric → null.
