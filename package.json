@@ -57,7 +57,7 @@
     "url": "https://github.com/gianfrancopiana/openclaw-autoresearch/issues"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
+    "@types/node": "24.19.0",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   },
